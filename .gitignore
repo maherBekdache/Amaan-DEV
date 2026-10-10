@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Env / secrets
+.env
+*.env.local
+
+# Third-party services cloned by scripts (kept out of our repo, see docs/DECISIONS.md)
+third_party/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
