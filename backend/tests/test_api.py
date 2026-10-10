@@ -168,3 +168,16 @@ def test_no_link_content_in_logs(client, caplog):
         client.post("/analyze/text", json={"text": "secret-message https://private-link-123.com/token"})
     assert "private-link-123" not in caplog.text
     assert "secret-message" not in caplog.text
+
+
+def test_dropped_link_all_flavours_keeps_mismatch(client):
+    # Browsers deliver one dropped link as uri-list + html + plain text at once.
+    urlvet_returns(client, {})
+    ev = client.post("/analyze/text", json={
+        "uri_list": "https://evil-login.net/x",
+        "html": '<a href="https://evil-login.net/x">www.blombank.com</a>',
+        "text": "www.blombank.com",
+    }).json()
+    assert [i["display"] for i in ev["items"]] == ["hxxps://evil-login[.]net/x"]  # decoy label not listed
+    assert ev["risk_level"] == "High"
+    assert any(s["id"] == "link_text_mismatch" for s in ev["items"][0]["signals"])

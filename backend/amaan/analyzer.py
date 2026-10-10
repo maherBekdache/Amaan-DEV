@@ -115,24 +115,22 @@ class Analyzer:
             text = text[: self.s.max_text_chars]
 
         pending: list[_Pending] = []
-        seen: set[str] = set()
         flags = TextFlags()
+
+        by_key: dict[str, _Pending] = {}
+        decoys: set[str] = set()  # link labels that point somewhere else
 
         def add(p: _Pending) -> None:
             k = _key(p.check_url or p.display)
-            if k not in seen:
-                seen.add(k)
-                pending.append(p)
+            if k in by_key:  # same link from another flavour: keep every signal
+                existing = by_key[k]
+                known = {s.id for s in existing.signals}
+                existing.signals = [s for s in p.signals if s.id not in known] + existing.signals
+                return
+            by_key[k] = p
+            pending.append(p)
 
-        # 1) Dropped links (text/uri-list): one URL per line, '#' lines are comments.
-        for line in (req.uri_list or "").splitlines()[:50]:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                u = parse_candidate(line)
-                if u:
-                    add(_url_pending(u, ItemSource.uri_list))
-
-        # 2) Dropped HTML: real link targets, plus a check that the visible text matches.
+        # 1) Dropped HTML: real link targets, plus a check that the visible text matches.
         if req.html:
             content = parse_html(req.html)
             for link in content.links[:50]:
@@ -143,15 +141,26 @@ class Analyzer:
                 mismatch = local_rules.link_text_mismatch(u.registrable, link.text)
                 if mismatch:
                     p.signals.insert(0, mismatch)
+                    for shown in extract_urls(link.text, limit=3).urls:
+                        decoys.add(_key(shown.url))
                 add(p)
             if not text.strip():
                 text = content.text[: self.s.max_text_chars]
+
+        # 2) Dropped links (text/uri-list): one URL per line, '#' lines are comments.
+        for line in (req.uri_list or "").splitlines()[:50]:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                u = parse_candidate(line)
+                if u:
+                    add(_url_pending(u, ItemSource.uri_list))
 
         # 3) Plain text.
         extraction = extract_urls(text, limit=50)
         flags = extraction.flags
         for u in extraction.urls:
-            add(_url_pending(u, ItemSource.text))
+            if _key(u.url) not in decoys:  # the visible label of a deceptive link is not a destination
+                add(_url_pending(u, ItemSource.text))
 
         message_signals = local_rules.text_flag_signals(flags) + text_cues.text_cue_signals(extraction.cleaned_text)
         urlvet_ms = await self._check_urls(pending, warnings)
