@@ -1,0 +1,32 @@
+{
+  "_note": "Curated by the Amaan team. Each official domain MUST be double-checked by a team member before the demo; a wrong entry would show a fake site as 'verified'. 'keywords' are tokens that, when found in a different domain, suggest impersonation. Only list domains whose content is controlled by the brand (no Google Sites / GitHub Pages style hosts).",
+  "brands": [
+    {"name": "OMT", "domains": ["omt.com.lb"], "keywords": ["omt"]},
+    {"name": "Whish Money", "domains": ["whish.money"], "keywords": ["whish", "whishmoney"]},
+    {"name": "BLOM Bank", "domains": ["blombank.com"], "keywords": ["blom", "blombank"]},
+    {"name": "Bank Audi", "domains": ["bankaudi.com.lb"], "keywords": ["bankaudi"]},
+    {"name": "Byblos Bank", "domains": ["byblosbank.com"], "keywords": ["byblosbank", "byblos"]},
+    {"name": "Fransabank", "domains": ["fransabank.com"], "keywords": ["fransabank"]},
+    {"name": "BankMed", "domains": ["bankmed.com.lb"], "keywords": ["bankmed"]},
+    {"name": "Banque du Liban", "domains": ["bdl.gov.lb"], "keywords": ["bdl", "banqueduliban"]},
+    {"name": "touch", "domains": ["touch.com.lb"], "keywords": ["touchlebanon", "mytouch"]},
+    {"name": "alfa", "domains": ["alfa.com.lb"], "keywords": ["alfalebanon", "myalfa"]},
+    {"name": "Ogero", "domains": ["ogero.gov.lb"], "keywords": ["ogero"]},
+    {"name": "LibanPost", "domains": ["libanpost.com"], "keywords": ["libanpost"]},
+    {"name": "Aramex", "domains": ["aramex.com"], "keywords": ["aramex"]},
+    {"name": "DHL", "domains": ["dhl.com"], "keywords": ["dhl"]},
+    {"name": "PayPal", "domains": ["paypal.com"], "keywords": ["paypal"]},
+    {"name": "Apple", "domains": ["apple.com", "icloud.com"], "keywords": ["apple", "icloud", "appleid"]},
+    {"name": "Netflix", "domains": ["netflix.com"], "keywords": ["netflix"]},
+    {"name": "WhatsApp", "domains": ["whatsapp.com"], "keywords": ["whatsapp"]},
+    {"name": "Facebook", "domains": ["facebook.com"], "keywords": ["facebook"]},
+    {"name": "Instagram", "domains": ["instagram.com"], "keywords": ["instagram"]},
+    {"name": "Binance", "domains": ["binance.com"], "keywords": ["binance"]}
+  ],
+  "shorteners": [
+    "bit.ly", "bitly.com", "tinyurl.com", "t.co", "goo.gl", "is.gd", "v.gd", "cutt.ly", "rb.gy",
+    "ow.ly", "buff.ly", "rebrand.ly", "shorturl.at", "tiny.cc", "s.id", "t.ly", "bl.ink",
+    "lnkd.in", "shorte.st", "adf.ly", "tr.im", "qrco.de", "short.gy", "urlz.fr",
+    "u.to", "clck.ru", "did.li", "x.co", "y2u.be", "surl.li"
+  ]
+}
