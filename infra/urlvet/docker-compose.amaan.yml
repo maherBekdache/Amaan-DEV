@@ -1,0 +1,18 @@
+# Overlay applied on top of URL.vet's own docker/prod/docker-compose.prod.yml.
+# This is configuration only: URL.vet's code is not modified.
+#  - publish its ports on 127.0.0.1 only (the original binds 0.0.0.0)
+#  - attach its backend to the network shared with Amaan
+# Needs Docker Compose >= 2.24 for !override.
+services:
+  backend:
+    ports: !override
+      - "127.0.0.1:8080:8080"
+    networks: [urlvet-net, amaan-urlvet]
+  web:
+    ports: !override
+      - "127.0.0.1:3000:80"
+
+networks:
+  amaan-urlvet:
+    name: amaan-urlvet
+    external: true

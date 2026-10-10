@@ -1,0 +1,32 @@
+# Amaan stack. Start everything with:  .\scripts\amaan.ps1 up   (Windows)
+#                                      ./scripts/amaan.sh up    (WSL / Linux / macOS)
+# The script starts URL.vet (its own, unmodified compose project) first and
+# then this file. `docker compose up` alone also works; links are then
+# checked with Amaan's local rules only until URL.vet is running.
+name: amaan
+
+services:
+  amaan:
+    build: .
+    image: amaan:dev
+    ports:
+      - "127.0.0.1:8000:8000"   # loopback only: not reachable from the network
+    environment:
+      AMAAN_URLVET_BASE_URL: http://urlvet-backend:8080
+    networks: [default, urlvet]
+    read_only: true              # nothing is written inside the container
+    tmpfs: [/tmp]                # large uploads may spool here; deleted after analysis
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  # Milestone 3: WhatsApp bridge, off unless started with --profile whatsapp
+  # whatsapp-bridge: ...
+
+networks:
+  urlvet:
+    # Shared with URL.vet's backend (see infra/urlvet/docker-compose.amaan.yml).
+    # Created by the scripts; create once by hand with:
+    #   docker network create amaan-urlvet
+    name: amaan-urlvet
+    external: true

@@ -21,3 +21,4 @@ third_party/
 Thumbs.db
 .vscode/
 .idea/
+*.tsbuildinfo
