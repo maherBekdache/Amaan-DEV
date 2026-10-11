@@ -181,3 +181,12 @@ def test_dropped_link_all_flavours_keeps_mismatch(client):
     assert [i["display"] for i in ev["items"]] == ["hxxps://evil-login[.]net/x"]  # decoy label not listed
     assert ev["risk_level"] == "High"
     assert any(s["id"] == "link_text_mismatch" for s in ev["items"][0]["signals"])
+
+
+def test_allowed_hosts_from_env(monkeypatch):
+    from amaan.config import DEFAULT_HOSTS, Settings
+
+    monkeypatch.setenv("AMAAN_ALLOWED_HOSTS", "localhost, *.app.github.dev")
+    assert Settings().allowed_hosts == ["localhost", "*.app.github.dev"]
+    monkeypatch.setenv("AMAAN_ALLOWED_HOSTS", "")
+    assert Settings().allowed_hosts == DEFAULT_HOSTS

@@ -6,8 +6,8 @@
 2. Install: Git, Docker Desktop (WSL2), Python 3.11, Node 20+, VS Code (recommended).
 3. Clone and run once:
    ```powershell
-   git clone <repo-url> amaan
-   cd amaan
+   git clone https://github.com/maherBekdache/Amaan-DEV.git
+   cd Amaan-DEV
    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
    .\scripts\amaan.ps1 up      # full stack, http://localhost:8000
    .\scripts\amaan.ps1 test    # all automated checks

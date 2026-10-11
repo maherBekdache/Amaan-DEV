@@ -14,6 +14,8 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
+    // GitHub Codespaces serves forwarded ports on *.app.github.dev.
+    allowedHosts: process.env.CODESPACES ? [".app.github.dev"] : undefined,
     proxy: {
       "/analyze": { target: api, changeOrigin: true },
       "/health": { target: api, changeOrigin: true },

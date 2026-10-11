@@ -1,8 +1,12 @@
 """Runtime settings, read from environment variables (prefix AMAAN_)."""
 
 from functools import lru_cache
+from typing import Annotated
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+DEFAULT_HOSTS = ["localhost", "127.0.0.1", "amaan", "testserver"]
 
 
 class Settings(BaseSettings):
@@ -28,13 +32,23 @@ class Settings(BaseSettings):
 
     # Hosts allowed in the Host header. Blocks DNS-rebinding attacks from
     # random websites against this local API.
-    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "amaan", "testserver"]
+    # Comma-separated in the environment, e.g. in GitHub Codespaces:
+    # AMAAN_ALLOWED_HOSTS=localhost,127.0.0.1,*.app.github.dev
+    allowed_hosts: Annotated[list[str], NoDecode] = DEFAULT_HOSTS
     # Extra browser origins allowed by CORS (the Vite dev server). The built
     # frontend is served from the same origin and needs none.
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     # Folder with the built frontend; served at / when it exists.
     frontend_dist: str | None = None
+
+    @field_validator("allowed_hosts", mode="before")
+    @classmethod
+    def _split_hosts(cls, v):
+        if isinstance(v, str):
+            hosts = [h.strip() for h in v.split(",") if h.strip()]
+            return hosts or DEFAULT_HOSTS
+        return v
 
 
 @lru_cache

@@ -26,7 +26,7 @@ report* or *verified*.
 | 2 | Lebanese voice-note transcription (Whisper) | next |
 | 3 | WhatsApp feasibility + Baileys demo + chat-export import | planned |
 
-**Guides:** [Testing](docs/TESTING.md) · [Demo video plan](docs/DEMO.md) ·
+**Guides:** [**How to run (exact commands)**](docs/RUN.md) · [Testing](docs/TESTING.md) · [Demo video plan](docs/DEMO.md) ·
 [Demo samples](demo/README.md) · [Contributing](CONTRIBUTING.md) ·
 [Decisions](docs/DECISIONS.md)
 
@@ -41,8 +41,8 @@ report* or *verified*.
 3. **Install Git for Windows** (https://git-scm.com/download/win).
 4. Clone and start:
    ```powershell
-   git clone https://github.com/maherbekdache/maherbekdache.git amaan
-   cd amaan
+   git clone https://github.com/maherBekdache/Amaan-DEV.git
+   cd Amaan-DEV
    # Allow local scripts for this window only:
    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
    .\scripts\amaan.ps1 up

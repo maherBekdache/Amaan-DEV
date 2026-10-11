@@ -13,6 +13,8 @@ services:
       - "127.0.0.1:8000:8000"   # loopback only: not reachable from the network
     environment:
       AMAAN_URLVET_BASE_URL: http://urlvet-backend:8080
+      # Set by .devcontainer for GitHub Codespaces; empty = localhost only.
+      AMAAN_ALLOWED_HOSTS: ${AMAAN_ALLOWED_HOSTS:-}
     networks: [default, urlvet]
     read_only: true              # nothing is written inside the container
     tmpfs: [/tmp]                # large uploads may spool here; deleted after analysis

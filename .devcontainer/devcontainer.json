@@ -1,0 +1,28 @@
+{
+  // GitHub Codespaces / VS Code Dev Container for Amaan.
+  // Runs the whole stack (URL.vet + Amaan) in a cloud VM you open in the browser.
+  // Forwarded ports stay PRIVATE (only you, signed in to GitHub, can open them).
+  "name": "Amaan",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "hostRequirements": { "cpus": 4, "memory": "8gb" },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libzbar0 && python -m venv backend/.venv && backend/.venv/bin/pip install -e './backend[dev]' && cd frontend && npm ci",
+  "remoteEnv": {
+    "AMAAN_ALLOWED_HOSTS": "localhost,127.0.0.1,amaan,testserver,*.app.github.dev"
+  },
+  "forwardPorts": [8000, 5173],
+  "portsAttributes": {
+    "8000": { "label": "Amaan (full stack)", "onAutoForward": "notify" },
+    "5173": { "label": "Amaan (dev, hot reload)", "onAutoForward": "notify" },
+    "8080": { "label": "URL.vet API", "onAutoForward": "silent" },
+    "3000": { "label": "URL.vet UI", "onAutoForward": "silent" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss"]
+    }
+  }
+}
