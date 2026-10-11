@@ -85,6 +85,8 @@ class Analyzer:
         ) and not any(i.urlvet and i.urlvet.incomplete for i in items)
         problems = {i.urlvet.status for i in items if i.urlvet and i.urlvet.status not in
                     (UrlVetStatus.ok, UrlVetStatus.skipped)}
+        if any(i.urlvet and i.urlvet.mock for i in items):
+            warnings.insert(0, "MOCK URL.vet is running: link verdicts are FAKE (development only).")
         if UrlVetStatus.unavailable in problems:
             warnings.append("URL.vet is not running, so links were only checked with Amaan's local rules.")
         elif UrlVetStatus.timeout in problems:

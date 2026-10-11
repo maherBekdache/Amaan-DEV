@@ -110,3 +110,27 @@ async def test_health(client):
     assert (await client.health())["reachable"] is True
     respx.get(f"{BASE}/health").mock(side_effect=httpx.ConnectError("x"))
     assert (await client.health())["reachable"] is False
+
+
+def test_mock_is_labelled():
+    r = parse_report({"_mock": True, "result": {"verdict": "Safe", "final_score": 85, "reasons": {}}})
+    assert r.mock and r.neutral_reasons[0].startswith("MOCK")
+
+
+@respx.mock
+async def test_health_reports_mock(client):
+    respx.get(f"{BASE}/health").mock(return_value=httpx.Response(200, json={"status": "ok", "mock": True}))
+    assert (await client.health())["mock"] is True
+
+
+async def test_mock_server_end_to_end():
+    from devtools.mock_urlvet import app as mock_app
+
+    transport = httpx.ASGITransport(app=mock_app)
+    c = UrlVetClient("http://mock", transport=transport)
+    try:
+        risky = await c.analyze("https://gift-claim.example.com")
+        assert risky.mock and risky.verdict == "Risky"
+        assert (await c.analyze("https://example.com")).verdict == "Safe"
+    finally:
+        await c.aclose()

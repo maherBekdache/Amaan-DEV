@@ -92,6 +92,7 @@ class UrlVetResult(BaseModel):
     threat_sources: list[str] = []
     incomplete: bool = False
     elapsed_ms: int | None = None
+    mock: bool = False  # answered by devtools/mock_urlvet.py, not the real URL.vet
 
 
 class AnalyzedItem(BaseModel):

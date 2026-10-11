@@ -8,12 +8,16 @@
   .\scripts\amaan.ps1 status
   .\scripts\amaan.ps1 down
   .\scripts\amaan.ps1 update-urlvet # move URL.vet to the pinned ref again
+  .\scripts\amaan.ps1 dev           # hot-reload dev: backend :8000 + frontend :5173 (URL.vet from Docker)
+  .\scripts\amaan.ps1 dev -Mock     # same, with a FAKE URL.vet (no Docker needed; never for the demo)
+  .\scripts\amaan.ps1 test          # backend tests + frontend type check
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "up", "down", "status", "logs", "update-urlvet")]
+  [ValidateSet("setup", "up", "down", "status", "logs", "update-urlvet", "dev", "test")]
   [string]$Command = "up",
-  [switch]$UrlvetUi
+  [switch]$UrlvetUi,
+  [switch]$Mock
 )
 
 $ErrorActionPreference = "Stop"
@@ -77,6 +81,33 @@ function Wait-Healthy([string]$url, [int]$seconds) {
   return $false
 }
 
+function Initialize-DevEnv {
+  $backend = Join-Path $Root "backend"
+  $py = Join-Path $backend ".venv\Scripts\python.exe"
+  if (-not (Test-Path $py)) {
+    if (-not (Get-Command py -ErrorAction SilentlyContinue)) { throw "Python launcher 'py' not found. Install Python 3.11 from python.org." }
+    Write-Host "==> Creating backend\.venv (Python 3.11)" -ForegroundColor Cyan
+    Invoke-Checked py @("-3.11", "-m", "venv", (Join-Path $backend ".venv"))
+  }
+  & $py -m pip --version *> $null
+  if ($LASTEXITCODE -ne 0) { Invoke-Checked $py @("-m", "ensurepip", "--upgrade") }
+  Write-Host "==> Installing backend dependencies" -ForegroundColor Cyan
+  Push-Location $backend
+  try { Invoke-Checked $py @("-m", "pip", "install", "--quiet", "-e", ".[dev]") } finally { Pop-Location }
+  $frontend = Join-Path $Root "frontend"
+  if (-not (Test-Path (Join-Path $frontend "node_modules"))) {
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { throw "Node.js not found. Install Node 20+ from nodejs.org." }
+    Write-Host "==> Installing frontend dependencies" -ForegroundColor Cyan
+    Push-Location $frontend
+    try { Invoke-Checked npm @("install", "--no-fund", "--no-audit") } finally { Pop-Location }
+  }
+  return $py
+}
+
+function Start-Window([string]$title, [string]$dir, [string]$cmd) {
+  Start-Process powershell -WorkingDirectory $dir -ArgumentList @("-NoExit", "-Command", "`$Host.UI.RawUI.WindowTitle='$title'; $cmd")
+}
+
 switch ($Command) {
   "setup" { Invoke-Setup; Write-Host "Setup done." -ForegroundColor Green }
 
@@ -121,5 +152,32 @@ switch ($Command) {
     Invoke-Checked git @("-C", $UrlvetDir, "fetch", "--quiet", "origin")
     Invoke-Checked git @("-C", $UrlvetDir, "-c", "advice.detachedHead=false", "checkout", "--quiet", $UrlvetRef)
     Write-Host "URL.vet is at $UrlvetRef. Run '.\scripts\amaan.ps1 up' to rebuild." -ForegroundColor Green
+  }
+
+  "dev" {
+    $py = Initialize-DevEnv
+    $backend = Join-Path $Root "backend"
+    # Free :8000 if the Docker version of Amaan is running (URL.vet keeps running).
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+      Push-Location $Root; try { docker compose stop amaan 2>$null | Out-Null } catch {} finally { Pop-Location }
+    }
+    if ($Mock) {
+      Write-Warning "Starting the MOCK URL.vet on :8080. Its verdicts are FAKE. Never use it for the demo."
+      Start-Window "MOCK URL.vet :8080" $backend "& '$py' -m uvicorn devtools.mock_urlvet:app --host 127.0.0.1 --port 8080"
+    }
+    Start-Window "Amaan backend :8000" $backend "& '$py' -m uvicorn amaan.main:app --reload --host 127.0.0.1 --port 8000"
+    Start-Window "Amaan frontend :5173" (Join-Path $Root "frontend") "npm run dev"
+    Start-Sleep 4
+    Start-Process "http://localhost:5173"
+    Write-Host "Dev servers started in separate windows. Close those windows to stop them." -ForegroundColor Green
+  }
+
+  "test" {
+    $py = Initialize-DevEnv
+    Push-Location (Join-Path $Root "backend")
+    try { Invoke-Checked $py @("-m", "pytest", "-q") } finally { Pop-Location }
+    Push-Location (Join-Path $Root "frontend")
+    try { Invoke-Checked npm @("run", "typecheck") } finally { Pop-Location }
+    Write-Host "All checks passed." -ForegroundColor Green
   }
 }

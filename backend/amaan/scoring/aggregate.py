@@ -41,7 +41,8 @@ def urlvet_signals(r: UrlVetResult) -> list[Signal]:
     if level:
         sev = {RiskLevel.high: Severity.high, RiskLevel.medium: Severity.medium, RiskLevel.low: Severity.good}[level]
         out.append(Signal(
-            id="urlvet_verdict", title=f"URL.vet verdict: {r.verdict} ({r.final_score}/100)",
+            id="urlvet_verdict",
+            title=f"{'MOCK (fake) ' if r.mock else ''}URL.vet verdict: {r.verdict} ({r.final_score}/100)",
             detail="; ".join(r.bad_reasons[:3]) or "; ".join(r.good_reasons[:2]),
             severity=sev, label=EvidenceLabel.automated_indicator, source="urlvet",
         ))

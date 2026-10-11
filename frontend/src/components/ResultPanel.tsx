@@ -117,6 +117,9 @@ function ItemCard({ item }: { item: AnalyzedItem }) {
             <div className="rounded-lg bg-slate-50 p-3">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm font-semibold">URL.vet</span>
+                {uv.mock && (
+                  <span className="rounded bg-fuchsia-100 px-1.5 text-[11px] font-bold text-fuchsia-800">MOCK: fake result</span>
+                )}
                 {uv.status === "ok" ? (
                   <>
                     <span className="text-sm">{uv.verdict ?? "No verdict"}</span>

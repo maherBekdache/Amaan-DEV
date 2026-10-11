@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Start/stop the Amaan stack from WSL, Linux or macOS.
 #   ./scripts/amaan.sh up [--urlvet-ui] | down | status | logs | setup | update-urlvet
+#   ./scripts/amaan.sh dev [--mock]   hot-reload backend :8000 + frontend :5173
+#                                     (--mock = FAKE URL.vet, development only)
+#   ./scripts/amaan.sh test           backend tests + frontend type check
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -37,7 +40,37 @@ setup() {
   docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK" >/dev/null
 }
 
+dev_env() {
+  if [ ! -x "$ROOT/backend/.venv/bin/python" ]; then
+    echo "==> Creating backend/.venv (Python 3.11)"
+    python3.11 -m venv "$ROOT/backend/.venv"
+  fi
+  "$ROOT/backend/.venv/bin/python" -m pip --version >/dev/null 2>&1 || "$ROOT/backend/.venv/bin/python" -m ensurepip --upgrade >/dev/null
+  (cd "$ROOT/backend" && .venv/bin/python -m pip install --quiet -e ".[dev]")
+  [ -d "$ROOT/frontend/node_modules" ] || (cd "$ROOT/frontend" && npm install --no-fund --no-audit)
+}
+
 case "$CMD" in
+  dev)
+    dev_env
+    command -v docker >/dev/null && (cd "$ROOT" && docker compose stop amaan >/dev/null 2>&1 || true)
+    pids=()
+    trap 'kill "${pids[@]}" 2>/dev/null' EXIT INT TERM
+    if [ "$UI" = "--mock" ]; then
+      echo "!! MOCK URL.vet on :8080: verdicts are FAKE, never use it for the demo."
+      (cd "$ROOT/backend" && .venv/bin/python -m uvicorn devtools.mock_urlvet:app --host 127.0.0.1 --port 8080) & pids+=($!)
+    fi
+    (cd "$ROOT/backend" && .venv/bin/python -m uvicorn amaan.main:app --reload --host 127.0.0.1 --port 8000) & pids+=($!)
+    (cd "$ROOT/frontend" && npm run dev) & pids+=($!)
+    echo "Open http://localhost:5173  (Ctrl+C stops everything)"
+    wait
+    ;;
+  test)
+    dev_env
+    (cd "$ROOT/backend" && .venv/bin/python -m pytest -q)
+    (cd "$ROOT/frontend" && npm run typecheck)
+    echo "All checks passed."
+    ;;
   setup) setup; echo "Setup done." ;;
   up)
     setup
@@ -72,5 +105,5 @@ case "$CMD" in
     git -C "$URLVET_DIR" -c advice.detachedHead=false checkout --quiet "$URLVET_REF"
     echo "URL.vet is at $URLVET_REF. Run './scripts/amaan.sh up' to rebuild."
     ;;
-  *) echo "usage: $0 up [--urlvet-ui] | down | status | logs | setup | update-urlvet" >&2; exit 2 ;;
+  *) echo "usage: $0 up [--urlvet-ui] | down | status | logs | setup | update-urlvet | dev [--mock] | test" >&2; exit 2 ;;
 esac

@@ -33,6 +33,7 @@ export interface UrlVetResult {
   threat_sources: string[];
   incomplete: boolean;
   elapsed_ms: number | null;
+  mock: boolean;
 }
 
 export interface AnalyzedItem {
@@ -64,6 +65,6 @@ export interface Evidence {
 export interface Health {
   status: string;
   version: string;
-  urlvet: { reachable: boolean; base_url: string; latency_ms: number };
+  urlvet: { reachable: boolean; mock: boolean; base_url: string; latency_ms: number };
   qr_decoders: Record<string, boolean>;
 }

@@ -62,8 +62,12 @@ def parse_report(data: dict[str, Any]) -> UrlVetResult:
     if isinstance(short, dict) and short and short.get("resolved") is False:
         neutral.append("URL.vet could not find where this short link leads.")
 
+    if data.get("_mock"):
+        neutral.insert(0, "MOCK URL.vet: fake result for development, not a real scan.")
+
     return UrlVetResult(
         status=UrlVetStatus.ok,
+        mock=bool(data.get("_mock")),
         verdict=result.get("verdict"),
         final_score=_int(result.get("final_score")),
         trust_score=_int(result.get("trust_score")),
@@ -99,12 +103,17 @@ class UrlVetClient:
 
     async def health(self) -> dict[str, Any]:
         t0 = time.perf_counter()
+        mock = False
         try:
             r = await self._client.get("/health", timeout=3.0)
             ok = r.status_code < 500
+            try:
+                mock = bool(r.json().get("mock"))  # devtools/mock_urlvet.py
+            except (ValueError, AttributeError):
+                pass
         except httpx.HTTPError:
             ok = False
-        return {"reachable": ok, "base_url": self.base_url,
+        return {"reachable": ok, "mock": mock, "base_url": self.base_url,
                 "latency_ms": int((time.perf_counter() - t0) * 1000)}
 
     async def analyze(self, url: str) -> UrlVetResult:

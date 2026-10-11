@@ -143,7 +143,9 @@ function StatusPill({ health }: { health: Health | null | undefined }) {
   if (health === undefined) return null;
   const [color, text] = !health
     ? ["bg-red-500", "Backend offline"]
-    : health.urlvet.reachable
+    : health.urlvet.reachable && health.urlvet.mock
+      ? ["bg-fuchsia-500", "MOCK URL.vet: fake link verdicts (dev only)"]
+      : health.urlvet.reachable
       ? ["bg-emerald-500", "Link sandbox (URL.vet) online"]
       : ["bg-amber-500", "URL.vet offline: local checks only"];
   return (
