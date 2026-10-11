@@ -26,6 +26,10 @@ report* or *verified*.
 | 2 | Lebanese voice-note transcription (Whisper) | next |
 | 3 | WhatsApp feasibility + Baileys demo + chat-export import | planned |
 
+**Guides:** [Testing](docs/TESTING.md) · [Demo video plan](docs/DEMO.md) ·
+[Demo samples](demo/README.md) · [Contributing](CONTRIBUTING.md) ·
+[Decisions](docs/DECISIONS.md)
+
 ---
 
 ## Windows setup (first time, ~20 minutes)
@@ -53,6 +57,9 @@ Day to day:
 .\scripts\amaan.ps1 status      # what is running + health
 .\scripts\amaan.ps1 logs        # Amaan logs
 .\scripts\amaan.ps1 down        # stop everything
+.\scripts\amaan.ps1 test        # automated checks (pytest + type check)
+.\scripts\amaan.ps1 dev         # hot-reload dev servers on http://localhost:5173
+.\scripts\amaan.ps1 dev -Mock   # no Docker: FAKE URL.vet, never for the demo
 ```
 
 From WSL, Linux or macOS use `./scripts/amaan.sh` with the same commands.
