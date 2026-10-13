@@ -59,8 +59,8 @@ def test_text_cues_arabic_arabizi_english():
     az = {s.id for s in text_cue_signals("mabrouk rbe7t jeyze, ab3atli el code bas yeslak")}
     assert {"cue_prize", "cue_asks_for_code"} <= az
     en = text_cue_signals("URGENT: your account will be suspended. Send me the code.")
-    assert {s.id for s in en} >= {"cue_urgency_threat", "cue_asks_for_code"}
-    assert all(s.severity is Severity.medium for s in en)
+    assert {s.id for s in en} >= {"cue_urgency_threat", "cue_asks_for_code", "cue_scam_script"}
+    assert all(s.severity is Severity.medium for s in en if s.id != "cue_scam_script")
 
 
 def test_text_cues_single_is_low_and_clean_is_empty():
@@ -105,5 +105,56 @@ def test_no_escalation_for_merely_unchecked_link():
 
     item = AnalyzedItem(id=1, kind=ItemKind.url, source=ItemSource.text, display="x", signals=[],
                         risk_level=RiskLevel.medium, summary="")
-    cues = text_cue_signals("mabrouk rbe7t jeyze, ab3atli el code")
+    cues = text_cue_signals("Your parcel worth 50$ is on its way")  # two weak cues
+    assert len(cues) == 2 and all(c.severity is Severity.low for c in cues)
     assert aggregate.overall_level([item], cues) is RiskLevel.medium
+
+
+
+# --- smarter cues (from real test messages) -----------------------------------------
+
+
+def ids_of(text: str) -> set[str]:
+    return {s.id for s in text_cue_signals(text)}
+
+
+def test_arabizi_spelling_variants_for_code_request():
+    for msg in ["lek b3atle el code tb3k", "ba3atli l code", "eb3atle el kod", "ab3atli el ramz",
+                "a3tini el code yalli wasalak", "please send me the code you got"]:
+        assert "cue_asks_for_code" in ids_of(msg), msg
+
+
+def test_code_request_with_link_is_a_scam_script():
+    sig = text_cue_signals("lek b3atle el code tb3k google.com")
+    assert sig[0].id == "cue_scam_script" and sig[0].severity is Severity.high
+
+
+def test_code_request_alone_is_medium():
+    sig = text_cue_signals("lek b3atle el code tb3k")
+    assert [s.severity for s in sig] == [Severity.medium]
+
+
+def test_arabic_prize_with_misspelling_amount_and_click():
+    msg = "لقد ربحت معنا جاءزة مليون دولار امريكي اضغط على الينك لتأخذها www.winprize1m.com"
+    got = ids_of(msg)
+    assert {"cue_prize", "cue_big_amount", "cue_click_link", "cue_scam_script"} <= got
+
+
+def test_normal_chats_stay_quiet():
+    for msg in ["mabrouk el baby! 🎉", "kifak? shoufak bokra", "The code review is tomorrow",
+                "I paid 20$ for lunch", "check the AUB calendar on https://www.aub.edu.lb"]:
+        sig = text_cue_signals(msg)
+        assert not any(s.severity in (Severity.medium, Severity.high) for s in sig), (msg, sig)
+
+
+def test_bait_words_in_domain():
+    assert "bait_domain" in ids("www.winprize1m.com")
+    assert "bait_domain" in ids("secure-login-update.xyz")
+    assert "bait_domain" not in ids("google.com")
+    assert "bait_domain" not in ids("https://www.omt.com.lb/gift")  # official, and path words don't count
+
+
+def test_unchecked_link_explains_itself():
+    r = UrlVetResult(status=UrlVetStatus.unavailable, message="URL.vet is not reachable (is it running?).")
+    sig = aggregate.urlvet_signals(r)
+    assert sig[0].id == "link_not_checked" and "not reachable" in sig[0].detail

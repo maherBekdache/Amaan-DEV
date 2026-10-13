@@ -17,6 +17,11 @@ from amaan.extract.urls import ExtractedUrl, TextFlags
 from amaan.schemas import EvidenceLabel, ItemKind, Severity, Signal
 
 DATA = Path(__file__).resolve().parent.parent / "data" / "brands.json"
+# Words scam domains use to look rewarding or official. Matched inside the
+# domain name only (not the path), and never on official/known domains.
+BAIT_WORDS = ("prize", "winner", "win", "gift", "bonus", "reward", "lottery", "lucky", "claim", "free",
+              "verify", "verification", "secure", "login", "signin", "update", "wallet", "airdrop", "promo")
+
 FILE_LIKE_TLDS = {"zip", "mov", "exe", "pdf", "doc", "apk", "scr"}  # those that exist as TLDs: zip, mov
 
 # Characters from other scripts that look like Latin letters, plus common
@@ -141,6 +146,18 @@ def url_signals(u: ExtractedUrl) -> list[Signal]:
                         Severity.medium,
                     ))
                     break
+
+    if reg not in officials and not u.is_ip and reg not in shorteners():
+        name = u.host_ascii.removesuffix("." + u.suffix) if u.suffix else u.host_ascii
+        found = [w for w in BAIT_WORDS if w in name.lower()]
+        found = [w for w in found if not any(w != o and w in o for o in found)]  # "win" inside "winner"
+        if found:
+            sigs.append(_sig(
+                "bait_domain", "Domain name uses bait words",
+                f"'{u.host}' contains {', '.join(repr(w) for w in found)}. Scam sites use names like this "
+                "to look rewarding or official.",
+                Severity.medium,
+            ))
 
     if reg in shorteners() or u.host_ascii in shorteners():
         sigs.append(_sig(

@@ -129,6 +129,9 @@ class UrlVetClient:
             if r.status_code == 400 and "://" not in url:
                 # Bare "domain/path" forms: retry once with an explicit scheme.
                 r = await self._client.get("/api/v1/analyze", params={"url": ("https://" + url)[:2048]})
+        except httpx.ConnectTimeout:
+            return UrlVetResult(status=UrlVetStatus.unavailable,
+                                message="URL.vet is not reachable (is it running?).")
         except httpx.TimeoutException:
             return UrlVetResult(status=UrlVetStatus.timeout,
                                 message=f"URL.vet did not answer within {self.timeout_s:.0f} s.")

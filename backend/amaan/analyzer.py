@@ -198,7 +198,8 @@ class Analyzer:
             if _key(u.url) not in decoys:  # the visible label of a deceptive link is not a destination
                 add(_url_pending(u, ItemSource.text))
 
-        message_signals = local_rules.text_flag_signals(flags) + text_cues.text_cue_signals(extraction.cleaned_text)
+        message_signals = local_rules.text_flag_signals(flags) + text_cues.text_cue_signals(
+            extraction.cleaned_text, has_link=any(p.kind is ItemKind.url for p in pending))
         urlvet_ms = await self._check_urls(pending, warnings, budget)
         stats = {"links_found": sum(1 for p in pending if p.kind is ItemKind.url), "urlvet_ms": urlvet_ms,
                  "total_ms": int((time.perf_counter() - t0) * 1000)}

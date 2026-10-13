@@ -30,6 +30,11 @@ def urlvet_signals(r: UrlVetResult) -> list[Signal]:
     """Expose URL.vet's findings as labelled signals too."""
     out: list[Signal] = []
     if r.status is not UrlVetStatus.ok:
+        out.append(Signal(
+            id="link_not_checked", title="Link couldn't be checked in the sandbox",
+            detail=f"{r.message} Until it is checked, treat it as unknown: don't log in or pay there.",
+            severity=Severity.low, label=EvidenceLabel.automated_indicator, source="urlvet",
+        ))
         return out
     if r.threat_listed:
         out.append(Signal(
@@ -109,7 +114,7 @@ def explain(items: list[AnalyzedItem], message_signals: list[Signal], level: Ris
         else:
             parts.append(f"Low risk: checked {len(items)} {noun} ({len(links)} link{'s' if len(links) != 1 else ''}) "
                          "and found no warning signs.")
-    cue_hits = [s for s in message_signals if s.id.startswith("cue_")]
+    cue_hits = [s for s in message_signals if s.id.startswith("cue_") and s.id != "cue_scam_script"]
     if cue_hits:
         parts.append("The message itself shows scam patterns: " + ", ".join(s.title.lower() for s in cue_hits) + ".")
     other = [s for s in message_signals if not s.id.startswith("cue_") and s.severity in (Severity.high, Severity.medium)]

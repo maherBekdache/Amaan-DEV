@@ -145,3 +145,11 @@ async def test_mock_matches_hosts_exactly():
         assert (await c.analyze("bit.ly/abc")).verdict == "Suspicious"
     finally:
         await c.aclose()
+
+
+
+@respx.mock
+async def test_connect_timeout_means_unreachable(client):
+    respx.get(f"{BASE}/api/v1/analyze").mock(side_effect=httpx.ConnectTimeout("no route"))
+    r = await client.analyze("https://example.com")
+    assert r.status is UrlVetStatus.unavailable and "not reachable" in r.message
