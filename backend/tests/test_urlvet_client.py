@@ -134,3 +134,14 @@ async def test_mock_server_end_to_end():
         assert (await c.analyze("https://example.com")).verdict == "Safe"
     finally:
         await c.aclose()
+
+
+async def test_mock_matches_hosts_exactly():
+    from devtools.mock_urlvet import app as mock_app
+
+    c = UrlVetClient("http://mock", transport=httpx.ASGITransport(app=mock_app))
+    try:
+        assert (await c.analyze("https://www.omt.com.lb/")).verdict == "Safe"  # contains "t.co"
+        assert (await c.analyze("bit.ly/abc")).verdict == "Suspicious"
+    finally:
+        await c.aclose()

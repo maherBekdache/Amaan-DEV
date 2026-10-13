@@ -1,4 +1,4 @@
-"""Guards the demo: every sample in demo/samples.json must keep producing the
+"""Guards the demo: every built-in example (frontend/src/examples.json) must keep producing the
 signals and risk level the demo script relies on (URL.vet switched off, so
 only Amaan's own rules count)."""
 
@@ -13,8 +13,9 @@ from fastapi.testclient import TestClient
 from amaan.config import get_settings
 from amaan.main import app
 
-DEMO = Path(__file__).resolve().parents[2] / "demo"
-SAMPLES = json.loads((DEMO / "samples.json").read_text(encoding="utf-8"))
+ROOT = Path(__file__).resolve().parents[2]
+SAMPLES = json.loads((ROOT / "frontend" / "src" / "examples.json").read_text(encoding="utf-8"))
+IMAGES = ROOT / "frontend" / "public" / "examples"
 URLVET = get_settings().urlvet_base_url
 
 
@@ -40,7 +41,7 @@ def test_text_samples(client, sample):
 
 @pytest.mark.parametrize("sample", SAMPLES["qr"], ids=lambda s: s["file"])
 def test_qr_samples(client, sample):
-    data = (DEMO / "qr" / sample["file"]).read_bytes()
+    data = (IMAGES / sample["file"]).read_bytes()
     ev = client.post("/analyze/image", files={"file": (sample["file"], data, "image/png")}).json()
     assert ev["stats"]["qr_codes"] == 1
     assert set(sample["expect_signals"]) <= all_signal_ids(ev)
@@ -49,13 +50,13 @@ def test_qr_samples(client, sample):
 
 def test_multi_qr_sample(client):
     s = SAMPLES["qr_multi"]
-    ev = client.post("/analyze/image", files={"file": (s["file"], (DEMO / "qr" / s["file"]).read_bytes(), "image/png")}).json()
+    ev = client.post("/analyze/image", files={"file": (s["file"], (IMAGES / s["file"]).read_bytes(), "image/png")}).json()
     assert ev["stats"]["qr_codes"] == len(s["payloads"])
     assert ev["risk_level"] == s["expect_risk"]
 
 
 def test_photo_sample(client):
     s = SAMPLES["qr_photo"]
-    ev = client.post("/analyze/image", files={"file": (s["file"], (DEMO / "qr" / s["file"]).read_bytes(), "image/jpeg")}).json()
+    ev = client.post("/analyze/image", files={"file": (s["file"], (IMAGES / s["file"]).read_bytes(), "image/jpeg")}).json()
     assert ev["stats"]["qr_codes"] == 1
     assert set(s["expect_signals"]) <= all_signal_ids(ev)

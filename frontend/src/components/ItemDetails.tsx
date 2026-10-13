@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { AnalyzedItem, Evidence, EvidenceLabel, RiskLevel, Severity, Signal } from "../types";
+import type { AnalyzedItem, EvidenceLabel, RiskLevel, Severity, Signal } from "../types";
 
+// Technical details for one found item (shown under "Show technical details").
 // Security: every string from the backend is rendered as plain text by React.
 // Links are shown defanged and are never clickable.
 
@@ -79,7 +80,7 @@ function Reasons({ title, items, tone }: { title: string; items: string[]; tone:
   );
 }
 
-function ItemCard({ item }: { item: AnalyzedItem }) {
+export function ItemCard({ item }: { item: AnalyzedItem }) {
   const [open, setOpen] = useState(item.risk_level !== "Low");
   const [copied, setCopied] = useState(false);
   const uv = item.urlvet;
@@ -173,48 +174,5 @@ function ItemCard({ item }: { item: AnalyzedItem }) {
         </div>
       )}
     </div>
-  );
-}
-
-export default function ResultPanel({ ev }: { ev: Evidence }) {
-  return (
-    <section className="space-y-4">
-      <div className={`rounded-2xl border p-5 ${RISK_STYLE[ev.risk_level]}`}>
-        <div className="flex flex-wrap items-center gap-3">
-          <RiskBadge level={ev.risk_level} big />
-          {!ev.complete && <span className="rounded bg-white/70 px-2 py-0.5 text-xs font-medium">Incomplete check</span>}
-          <span className="ml-auto text-xs opacity-70">
-            {ev.input_type} · {new Date(ev.analyzed_at).toLocaleTimeString()}
-          </span>
-        </div>
-        <p className="mt-3 text-[15px] leading-relaxed">{ev.explanation}</p>
-      </div>
-
-      {ev.warnings.length > 0 && (
-        <ul className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          {ev.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
-        </ul>
-      )}
-
-      {ev.signals.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <p className="text-sm font-semibold">About the message</p>
-          <ul className="divide-y divide-slate-100">
-            {ev.signals.map((s, i) => <SignalRow key={i} s={s} />)}
-          </ul>
-        </div>
-      )}
-
-      {ev.items.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm font-semibold">What we found ({ev.items.length})</p>
-          {ev.items.map((it) => <ItemCard key={it.id} item={it} />)}
-        </div>
-      )}
-
-      <p className="text-xs text-slate-400">
-        {Object.entries(ev.stats).map(([k, v]) => `${k.replaceAll("_", " ")}: ${v}`).join(" · ")}
-      </p>
-    </section>
   );
 }

@@ -1,7 +1,6 @@
-"""Regenerate the demo QR images from demo/samples.json.
+"""Regenerate the example QR images from frontend/src/examples.json.
 
-Run from the repo root:  backend/.venv/bin/python demo/make_qr_samples.py
-(Windows: backend\\.venv\\Scripts\\python demo\\make_qr_samples.py)
+Run from the repo root:  backend/.venv/bin/python scripts/make_examples.py
 """
 
 import json
@@ -11,8 +10,9 @@ from pathlib import Path
 import qrcode
 from PIL import Image, ImageDraw, ImageFilter
 
-HERE = Path(__file__).resolve().parent
-OUT = HERE / "qr"
+ROOT = Path(__file__).resolve().parent.parent
+SAMPLES = ROOT / "frontend" / "src" / "examples.json"
+OUT = ROOT / "frontend" / "public" / "examples"
 
 
 def qr(data: str, box: int = 10) -> Image.Image:
@@ -23,7 +23,7 @@ def qr(data: str, box: int = 10) -> Image.Image:
 
 
 def main() -> None:
-    samples = json.loads((HERE / "samples.json").read_text(encoding="utf-8"))
+    samples = json.loads(SAMPLES.read_text(encoding="utf-8"))
     OUT.mkdir(exist_ok=True)
     for s in samples["qr"]:
         qr(s["payload"]).save(OUT / s["file"])

@@ -1,0 +1,176 @@
+{
+  "_note": "Built-in examples shown as one-click buttons in the app. Links use example.com (reserved, safe) or real official sites. backend/tests/test_examples.py checks each one still gets its expected result (URL.vet off). Images: frontend/public/examples/, regenerate with scripts/make_examples.py.",
+  "qr": [
+    {
+      "file": "01-official-omt.png",
+      "payload": "https://www.omt.com.lb/",
+      "expect_signals": [
+        "official_domain"
+      ],
+      "expect_risk": "Low",
+      "story": "Real OMT site: verified official domain",
+      "label": "Real OMT QR"
+    },
+    {
+      "file": "02-at-sign-trick.png",
+      "payload": "http://www.omt.com.lb@omt-claim.example.com/prize",
+      "expect_signals": [
+        "userinfo_trick",
+        "brand_in_domain"
+      ],
+      "expect_risk": "High",
+      "story": "Looks like omt.com.lb but really opens example.com",
+      "label": "Fake OMT QR"
+    },
+    {
+      "file": "03-open-wifi.png",
+      "payload": "WIFI:S:Free_Beirut_Airport;T:nopass;;",
+      "expect_signals": [
+        "open_wifi"
+      ],
+      "expect_risk": "Medium",
+      "story": "Fake free hotspot",
+      "label": "Free Wi-Fi QR"
+    },
+    {
+      "file": "04-premium-sms.png",
+      "payload": "SMSTO:1199:SUBSCRIBE GOLD",
+      "expect_signals": [
+        "sms"
+      ],
+      "expect_risk": "Medium",
+      "story": "Ready-made SMS that subscribes you to a paid service",
+      "label": "Paid SMS QR"
+    },
+    {
+      "file": "05-crypto-payment.png",
+      "payload": "bitcoin:bc1qdemo0000000000000000000000000000000000?amount=0.05",
+      "expect_signals": [
+        "crypto_payment"
+      ],
+      "expect_risk": "High",
+      "story": "Crypto payment request (cannot be reversed)",
+      "label": "Crypto QR"
+    },
+    {
+      "file": "06-phone-call.png",
+      "payload": "tel:+447700900123",
+      "expect_signals": [
+        "tel"
+      ],
+      "expect_risk": "Low",
+      "story": "International phone call",
+      "label": "Phone call QR"
+    }
+  ],
+  "qr_multi": {
+    "file": "07-three-codes.png",
+    "payloads": [
+      "https://www.aub.edu.lb/",
+      "WIFI:S:AUB-Guest;T:WPA;P:demo1234;;",
+      "http://192.168.1.1/admin"
+    ],
+    "expect_risk": "Medium",
+    "story": "Several QR codes in one image: a real site, a Wi-Fi network and a raw IP address",
+    "label": "3 QR codes"
+  },
+  "qr_photo": {
+    "file": "08-photo-of-poster.jpg",
+    "payload": "https://omt-gift.example.com/claim",
+    "expect_signals": [
+      "brand_in_domain"
+    ],
+    "story": "Small, tilted QR in a noisy photo (tests the decoders)",
+    "label": "Photo of a poster"
+  },
+  "text": [
+    {
+      "id": "arabic-prize",
+      "lang": "Arabic",
+      "text": "مبروك! ربحت جائزة من OMT بقيمة 500$. ادخل على omt-gift.example.com/claim وابعتلي رمز التحقق يلي رح يوصلك",
+      "expect_signals": [
+        "brand_in_domain",
+        "cue_prize",
+        "cue_asks_for_code"
+      ],
+      "expect_risk": "High",
+      "label": "Arabic prize scam"
+    },
+    {
+      "id": "arabizi-code",
+      "lang": "Arabizi",
+      "text": "Mabrouk! rbe7t jeyze men Whish 🎁 ekbos hon whish-money.example.com w ab3atli el code yalli wasalak",
+      "expect_signals": [
+        "brand_in_domain",
+        "cue_prize",
+        "cue_asks_for_code"
+      ],
+      "expect_risk": "High",
+      "label": "Arabizi code scam"
+    },
+    {
+      "id": "english-suspended",
+      "lang": "English",
+      "text": "URGENT: Your BLOM Bank account will be suspended within 24 hours. Verify now: http://blom-secure.example.com/login",
+      "expect_signals": [
+        "brand_in_domain",
+        "no_https",
+        "cue_urgency_threat"
+      ],
+      "expect_risk": "High",
+      "label": "Bank threat"
+    },
+    {
+      "id": "parcel",
+      "lang": "English",
+      "text": "LibanPost: your parcel is held at customs. Pay the 2$ customs fee here: libanpost-delivery.example.com/pay",
+      "expect_signals": [
+        "brand_in_domain",
+        "cue_delivery_lure",
+        "cue_money_request"
+      ],
+      "expect_risk": "High",
+      "label": "Parcel fee"
+    },
+    {
+      "id": "hidden-characters",
+      "lang": "English",
+      "text": "Your invoice: exam​ple.com/invoice‮gpj.exe",
+      "expect_signals": [
+        "zero_width",
+        "bidi_override"
+      ],
+      "expect_risk": "High",
+      "label": "Hidden characters"
+    },
+    {
+      "id": "lookalike-digits",
+      "lang": "English",
+      "text": "Log in to confirm your payment: https://paypa1.com/signin",
+      "expect_signals": [
+        "lookalike_domain"
+      ],
+      "expect_risk": "High",
+      "label": "Lookalike site"
+    },
+    {
+      "id": "file-like-domain",
+      "lang": "English",
+      "text": "Here are the documents: invoice-2026.zip",
+      "expect_signals": [
+        "file_like_tld"
+      ],
+      "expect_risk": "Medium",
+      "label": "Fake file link"
+    },
+    {
+      "id": "safe-chat",
+      "lang": "Arabizi",
+      "text": "kifak? check the AUB calendar on https://www.aub.edu.lb w mnetla2a bokra",
+      "expect_signals": [],
+      "expect_risk": "Medium",
+      "note": "Medium only because URL.vet is off in the test; with URL.vet running this should be Low",
+      "label": "Normal chat"
+    }
+  ]
+}

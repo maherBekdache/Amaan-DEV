@@ -137,7 +137,7 @@ def url_signals(u: ExtractedUrl) -> list[Signal]:
                 if hit:
                     sigs.append(_sig(
                         "brand_in_domain", f"Uses the name '{b['name']}' but is not a known official domain",
-                        f"{reg} contains '{hit}', but {b['name']}'s official domain is {', '.join(b['domains'])}.",
+                        f"{u.host} contains '{hit}', but {b['name']}'s official domain is {', '.join(b['domains'])}.",
                         Severity.medium,
                     ))
                     break

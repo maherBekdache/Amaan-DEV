@@ -8,11 +8,13 @@ every result.
 Run:  uvicorn devtools.mock_urlvet:app --host 127.0.0.1 --port 8080
 """
 
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI, HTTPException
 
 app = FastAPI(title="MOCK URL.vet (fake results)")
 
-RISKY_WORDS = ("login", "verify", "gift", "claim", "prize", "secure", "update", "wallet", "bonus", "omt", "whish")
+RISKY_WORDS = ("login", "verify", "gift", "claim", "prize", "secure", "update", "wallet", "bonus")
 SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "cutt.ly", "rb.gy", "is.gd", "shorturl.at")
 NOTE = "MOCK URL.vet: this is a fake result for development, no real scan was done."
 
@@ -27,7 +29,8 @@ def analyze(url: str = ""):
     if not url:
         raise HTTPException(400, {"error": "url query param is required"})
     low = url.lower()
-    if any(s in low for s in SHORTENERS):
+    host = urlsplit(low if "://" in low else "//" + low).hostname or ""
+    if host in SHORTENERS:
         verdict, score, bad = "Suspicious", 45, ["[mock] Short link: destination not followed by the mock."]
     elif any(w in low for w in RISKY_WORDS):
         verdict, score, bad = "Risky", 15, ["[mock] Link contains a word often used in phishing."]

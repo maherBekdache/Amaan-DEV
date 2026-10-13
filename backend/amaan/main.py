@@ -111,6 +111,8 @@ async def analyze_image(request: Request, file: UploadFile = File(...),
 _dist = Path(settings.frontend_dist) if settings.frontend_dist else None
 if _dist and (_dist / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="assets")
+    if (_dist / "examples").exists():  # built-in demo examples (safe, bundled with the app)
+        app.mount("/examples", StaticFiles(directory=_dist / "examples"), name="examples")
 
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
