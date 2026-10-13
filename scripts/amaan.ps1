@@ -29,9 +29,21 @@ $UrlvetRef = if ($env:URLVET_REF) { $env:URLVET_REF } else { "a6b54c29b73a053b91
 $Network = "amaan-urlvet"
 $Utf8 = New-Object System.Text.UTF8Encoding $false
 
+# Windows PowerShell 5.1 turns anything a native program (docker, git) writes
+# to stderr into a fatal error when $ErrorActionPreference is "Stop", even if
+# the program succeeded. So native commands run with "Continue" and we judge
+# them by their exit code only.
 function Invoke-Checked([string]$exe, [string[]]$arguments) {
+  $ErrorActionPreference = "Continue"
   & $exe @arguments
   if ($LASTEXITCODE -ne 0) { throw "$exe $($arguments -join ' ') failed (exit $LASTEXITCODE)" }
+}
+
+# Runs a native command silently; returns $true if it succeeded.
+function Test-Native([string]$exe, [string[]]$arguments) {
+  $ErrorActionPreference = "Continue"
+  & $exe @arguments *> $null
+  return ($LASTEXITCODE -eq 0)
 }
 
 function New-Secret {
@@ -42,8 +54,7 @@ function New-Secret {
 
 function Assert-Docker {
   if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw "Docker is not installed. Install Docker Desktop (WSL2 backend)." }
-  docker info *> $null
-  if ($LASTEXITCODE -ne 0) { throw "Docker Desktop is not running. Start it and try again." }
+  if (-not (Test-Native docker @("info"))) { throw "Docker Desktop is not running. Start it, wait for 'Engine running', and try again." }
 }
 
 function Get-UrlvetCompose {
@@ -69,8 +80,9 @@ function Invoke-Setup {
     [IO.File]::WriteAllText($serverEnv, $tpl, $Utf8)
     [IO.File]::WriteAllText($composeEnv, "CACHE_PASSWORD=$cache`n", $Utf8)
   }
-  docker network inspect $Network *> $null
-  if ($LASTEXITCODE -ne 0) { Invoke-Checked docker @("network", "create", $Network) | Out-Null }
+  if (-not (Test-Native docker @("network", "inspect", $Network))) {
+    Invoke-Checked docker @("network", "create", $Network) | Out-Null
+  }
 }
 
 function Wait-Healthy([string]$url, [int]$seconds) {
@@ -89,8 +101,7 @@ function Initialize-DevEnv {
     Write-Host "==> Creating backend\.venv (Python 3.11)" -ForegroundColor Cyan
     Invoke-Checked py @("-3.11", "-m", "venv", (Join-Path $backend ".venv"))
   }
-  & $py -m pip --version *> $null
-  if ($LASTEXITCODE -ne 0) { Invoke-Checked $py @("-m", "ensurepip", "--upgrade") }
+  if (-not (Test-Native $py @("-m", "pip", "--version"))) { Invoke-Checked $py @("-m", "ensurepip", "--upgrade") }
   Write-Host "==> Installing backend dependencies" -ForegroundColor Cyan
   Push-Location $backend
   try { Invoke-Checked $py @("-m", "pip", "install", "--quiet", "-e", ".[dev]") } finally { Pop-Location }
@@ -132,20 +143,20 @@ switch ($Command) {
 
   "down" {
     Push-Location $Root
-    try { docker compose down } finally { Pop-Location }
-    if (Test-Path $UrlvetDir) { docker @((Get-UrlvetCompose) + @("down")) }
+    try { Invoke-Checked docker @("compose", "down") } finally { Pop-Location }
+    if (Test-Path $UrlvetDir) { Invoke-Checked docker ((Get-UrlvetCompose) + @("down")) }
   }
 
   "status" {
     Push-Location $Root
-    try { docker compose ps } finally { Pop-Location }
-    if (Test-Path $UrlvetDir) { docker @((Get-UrlvetCompose) + @("ps")) }
+    try { Invoke-Checked docker @("compose", "ps") } finally { Pop-Location }
+    if (Test-Path $UrlvetDir) { Invoke-Checked docker ((Get-UrlvetCompose) + @("ps")) }
     try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 "http://localhost:8000/health").Content } catch { Write-Warning "Amaan is not answering on :8000" }
   }
 
   "logs" {
     Push-Location $Root
-    try { docker compose logs -f --tail 100 } finally { Pop-Location }
+    try { Invoke-Checked docker @("compose", "logs", "-f", "--tail", "100") } finally { Pop-Location }
   }
 
   "update-urlvet" {
@@ -159,7 +170,7 @@ switch ($Command) {
     $backend = Join-Path $Root "backend"
     # Free :8000 if the Docker version of Amaan is running (URL.vet keeps running).
     if (Get-Command docker -ErrorAction SilentlyContinue) {
-      Push-Location $Root; try { docker compose stop amaan 2>$null | Out-Null } catch {} finally { Pop-Location }
+      Push-Location $Root; try { Test-Native docker @("compose", "stop", "amaan") | Out-Null } finally { Pop-Location }
     }
     if ($Mock) {
       Write-Warning "Starting the MOCK URL.vet on :8080. Its verdicts are FAKE. Never use it for the demo."
