@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     # frontend is served from the same origin and needs none.
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # WhatsApp (optional, Milestone 3). The bridge is a separate Node service;
+    # it may only forward messages if it presents this shared token.
+    whatsapp_bridge_url: str = "http://localhost:8090"
+    bridge_token: str | None = None
+    # Chat-export import (.txt / .zip with photos)
+    max_import_bytes: int = 60 * 1024 * 1024
+    max_urls_per_import: int = 15
+
     # Folder with the built frontend; served at / when it exists.
     frontend_dist: str | None = None
 

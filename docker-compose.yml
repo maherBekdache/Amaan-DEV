@@ -15,6 +15,9 @@ services:
       AMAAN_URLVET_BASE_URL: http://urlvet-backend:8080
       # Set by .devcontainer for GitHub Codespaces; empty = localhost only.
       AMAAN_ALLOWED_HOSTS: ${AMAAN_ALLOWED_HOSTS:-}
+      # WhatsApp bridge (only used when it runs); the token is generated into .env by the scripts.
+      AMAAN_WHATSAPP_BRIDGE_URL: http://whatsapp-bridge:8090
+      AMAAN_BRIDGE_TOKEN: ${AMAAN_BRIDGE_TOKEN:-}
     networks: [default, urlvet]
     read_only: true              # nothing is written inside the container
     tmpfs: [/tmp]                # large uploads may spool here; deleted after analysis
@@ -22,8 +25,24 @@ services:
     security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
 
-  # Milestone 3: WhatsApp bridge, off unless started with --profile whatsapp
-  # whatsapp-bridge: ...
+  # Optional WhatsApp bridge (Milestone 3). Only started with the "whatsapp"
+  # profile: start-whatsapp.bat, or  docker compose --profile whatsapp up -d
+  # Not published on any host port; only the amaan service talks to it.
+  whatsapp-bridge:
+    profiles: [whatsapp]
+    build: ./whatsapp-bridge
+    image: amaan-whatsapp-bridge:dev
+    environment:
+      AMAAN_BACKEND_URL: http://amaan:8000
+      AMAAN_BRIDGE_TOKEN: ${AMAAN_BRIDGE_TOKEN:-}
+    volumes:
+      - wa_session:/data   # WhatsApp login session + chat selection only, never messages
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+volumes:
+  wa_session:
 
 networks:
   urlvet:

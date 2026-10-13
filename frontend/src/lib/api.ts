@@ -1,4 +1,4 @@
-import type { Evidence, Health } from "../types";
+import type { Evidence, Health, ImportReport, WaAlert, WaChat, WaStatus } from "../types";
 
 // Same-origin by default. An Electron build can point this at the local backend.
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
@@ -47,3 +47,31 @@ export async function getHealth(): Promise<Health | null> {
     return null;
   }
 }
+
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { credentials: "omit", ...init }).catch(() => {
+    throw new ApiError("Amaan's backend is not running.");
+  });
+  return handle<T>(res);
+}
+
+export function importChat(file: File): Promise<ImportReport> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  return call<ImportReport>("/import/chat", { method: "POST", body: form });
+}
+
+export const wa = {
+  status: () => call<WaStatus>("/whatsapp/status"),
+  link: () => call<WaStatus>("/whatsapp/link", { method: "POST" }),
+  logout: () => call<WaStatus>("/whatsapp/logout", { method: "POST" }),
+  chats: () => call<{ chats: WaChat[] }>("/whatsapp/chats"),
+  select: (chat_ids: string[]) =>
+    call<{ selected: number }>("/whatsapp/selection", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_ids }),
+    }),
+  alerts: () => call<WaAlert[]>("/whatsapp/alerts"),
+  clearAlerts: () => call<{ cleared: boolean }>("/whatsapp/alerts", { method: "DELETE" }),
+};

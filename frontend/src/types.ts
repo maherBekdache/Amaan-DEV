@@ -68,3 +68,54 @@ export interface Health {
   urlvet: { reachable: boolean; mock: boolean; base_url: string; latency_ms: number };
   qr_decoders: Record<string, boolean>;
 }
+
+export interface ImportFinding {
+  index: number;
+  date: string;
+  time: string;
+  sender: string;
+  text: string;
+  attachment: string | null;
+  evidence: Evidence;
+}
+
+export interface ImportReport {
+  title: string;
+  risk_level: RiskLevel;
+  messages_total: number;
+  messages_checked: number;
+  links_found: number;
+  links_checked: number;
+  images_checked: number;
+  findings: ImportFinding[];
+  warnings: string[];
+}
+
+export type WaState = "idle" | "connecting" | "qr" | "connected";
+
+export interface WaStatus {
+  enabled: boolean;
+  state?: WaState;
+  qr?: string | null; // data: URL generated locally by the bridge
+  me?: { id: string | null; name: string | null } | null;
+  error?: string | null;
+  selected?: number;
+  checked_total?: number;
+}
+
+export interface WaChat {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  selected: boolean;
+}
+
+export interface WaAlert {
+  id: number;
+  received_at: string;
+  chat_name: string;
+  sender: string;
+  kind: string;
+  text: string;
+  evidence: Evidence;
+}

@@ -32,6 +32,12 @@ Click any **Try an example** button on the page: scam messages, a fake and a
 real OMT QR code, a free Wi-Fi QR, several QR codes in one image. Or paste
 your own text, drop a screenshot, or click **Scan a QR with the camera**.
 
+**WhatsApp tab:**
+- **Check a whole chat:** export it from WhatsApp (chat → ⋮ → More → Export chat) and upload the file. No login needed.
+- **Watch chats live** (optional, test number only): start with **`start-whatsapp.bat`**, click *Link WhatsApp*,
+  scan the QR with the phone (Linked devices), and tick the chats to watch. New suspicious messages appear automatically.
+  Details and risks: [docs/FEASIBILITY.md](docs/FEASIBILITY.md).
+
 Demo video plan: [docs/DEMO.md](docs/DEMO.md).
 
 ## Work on it
@@ -43,4 +49,4 @@ Demo video plan: [docs/DEMO.md](docs/DEMO.md).
 |---|---|---|
 | 1 | Links + QR codes (text, drop, upload, webcam) | ✅ |
 | 2 | Lebanese voice-note transcription | next |
-| 3 | WhatsApp integration | planned |
+| 3 | WhatsApp: chat-export import + live watching of selected chats | ✅ |

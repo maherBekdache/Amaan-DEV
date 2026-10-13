@@ -4,10 +4,11 @@ import Examples, { loadExampleImage, type Example } from "./components/Examples"
 import HistoryList from "./components/HistoryList";
 import InputCard from "./components/InputCard";
 import Verdict, { type Checked } from "./components/Verdict";
-import { analyzeImage, analyzeText, ApiError, getHealth } from "./lib/api";
+import WhatsAppPanel from "./components/WhatsAppPanel";
+import { analyzeImage, analyzeText, ApiError, getHealth, importChat } from "./lib/api";
 import { fromDataTransfer, type Incoming } from "./lib/dropParse";
 import { addToHistory, clearHistory, loadHistory, type HistoryEntry } from "./lib/history";
-import type { Evidence, Health } from "./types";
+import type { Evidence, Health, ImportReport } from "./types";
 
 export default function App() {
   const [text, setText] = useState("");
@@ -18,6 +19,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
   const [health, setHealth] = useState<Health | null | undefined>(undefined);
+  const [tab, setTab] = useState<"check" | "whatsapp">("check");
+  const [importing, setImporting] = useState(false);
+  const [report, setReport] = useState<ImportReport | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,10 +68,28 @@ export default function App() {
     [run, showChecked],
   );
 
+  const runImport = useCallback(async (file: File) => {
+    setTab("whatsapp");
+    setImporting(true);
+    setReport(null);
+    setError(null);
+    try {
+      setReport(await importChat(file));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not read this chat export.");
+    } finally {
+      setImporting(false);
+    }
+  }, []);
+
   const handleInput = useCallback(
     (input: Incoming) => {
-      if (busy) return;
-      if (input.kind === "image") checkImage(input.file, "image", input.file.name);
+      if (busy || importing) return;
+      if (input.kind === "chat_export") runImport(input.file);
+      else if (input.kind === "image") {
+        setTab("check");
+        checkImage(input.file, "image", input.file.name);
+      }
       else if (input.kind === "text") {
         const shown = input.text || input.uri_list || "";
         if (input.text) setText(input.text);
@@ -76,7 +98,7 @@ export default function App() {
       } else if (input.kind === "unsupported") setError(input.reason);
       else setError("Nothing to check was found in what you dropped or pasted.");
     },
-    [busy, checkImage, run, showChecked],
+    [busy, importing, checkImage, run, runImport, showChecked],
   );
 
   const pickExample = useCallback(
@@ -121,24 +143,45 @@ export default function App() {
         <Status health={health} />
       </header>
 
-      {camera ? (
-        <CameraScanner onClose={() => setCamera(false)} onCapture={(frame) => checkImage(frame, "camera", "camera.png")} />
+      <nav className="flex gap-1 rounded-xl bg-slate-200/70 p-1 text-sm font-medium">
+        {(["check", "whatsapp"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 rounded-lg px-4 py-2 ${tab === t ? "bg-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+          >
+            {t === "check" ? "🔍 Check something" : "💬 WhatsApp"}
+          </button>
+        ))}
+      </nav>
+
+      {tab === "whatsapp" ? (
+        <>
+          {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">{error}</div>}
+          <WhatsAppPanel report={report} importing={importing} onImport={runImport} />
+        </>
       ) : (
-        <InputCard busy={busy} text={text} setText={setText} onInput={handleInput} onCamera={() => setCamera(true)} />
-      )}
-
-      <Examples disabled={busy} onPick={pickExample} />
-
-      <div ref={resultRef} className="scroll-mt-4">
-        {busy && (
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5">
-            <span className="h-5 w-5 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
-            <span>Checking… links are tested in a safe sandbox, this can take up to 15 seconds.</span>
-          </div>
+        <>
+        {camera ? (
+          <CameraScanner onClose={() => setCamera(false)} onCapture={(frame) => checkImage(frame, "camera", "camera.png")} />
+        ) : (
+          <InputCard busy={busy} text={text} setText={setText} onInput={handleInput} onCamera={() => setCamera(true)} />
         )}
-        {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">{error}</div>}
-        {result && !busy && <Verdict ev={result} checked={checked} />}
-      </div>
+
+        <Examples disabled={busy} onPick={pickExample} />
+
+        <div ref={resultRef} className="scroll-mt-4">
+          {busy && (
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5">
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
+              <span>Checking… links are tested in a safe sandbox, this can take up to 15 seconds.</span>
+            </div>
+          )}
+          {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">{error}</div>}
+          {result && !busy && <Verdict ev={result} checked={checked} />}
+        </div>
+        </>
+      )}
 
       <HistoryList entries={history} onClear={() => setHistory(clearHistory())} />
 

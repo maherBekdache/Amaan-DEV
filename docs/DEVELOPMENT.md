@@ -15,6 +15,7 @@ Windows (PowerShell, in the repo folder; first run
 | `.\scripts\amaan.ps1 dev` | live-reload dev servers → http://localhost:5173 (start Docker with `start.bat` once first) |
 | `.\scripts\amaan.ps1 dev -Mock` | same, without Docker: **fake** link verdicts, pink "MOCK" label |
 | `.\scripts\amaan.ps1 up` / `down` / `status` / `logs` | full stack (what `start.bat` / `stop.bat` call) |
+| `.\scripts\amaan.ps1 up -WhatsApp` | full stack + WhatsApp bridge (what `start-whatsapp.bat` calls) |
 
 macOS / Linux / WSL: `./scripts/amaan.sh test | dev [--mock] | up | down | status | logs`.
 
@@ -41,7 +42,9 @@ backend/amaan/       FastAPI app
   scoring/           local rules, Arabic/Arabizi scam phrases, final verdict + reasons
   data/brands.json   official domains (each entry must be checked by a teammate)
 backend/tests/       pytest suite (incl. every built-in example)
+backend/amaan/api/whatsapp.py, importers/   WhatsApp: chat-export import, alerts, bridge proxy
 backend/devtools/    fake URL.vet for --mock
+whatsapp-bridge/     optional Node service (Baileys) for live WhatsApp; tests: cd whatsapp-bridge; npm test
 frontend/src/        React UI (App.tsx, components/)
 frontend/src/examples.json + public/examples/   built-in examples (regenerate: scripts/make_examples.py)
 infra/urlvet/        config for URL.vet (its code is cloned, unmodified, into third_party/)
@@ -54,6 +57,8 @@ scripts/             amaan.ps1 / amaan.sh
 | `POST /analyze/text` | JSON `{text, html?, uri_list?}` |
 | `POST /analyze/image` | multipart `file` (PNG/JPG/WebP), optional `source=camera` |
 | `GET /health` | status, URL.vet reachable, QR decoders |
+| `POST /import/chat` | multipart `file` (WhatsApp export .txt/.zip) |
+| `GET /whatsapp/status`, `POST /whatsapp/link`, `GET /whatsapp/chats`, `PUT /whatsapp/selection`, `GET /whatsapp/alerts` | live WhatsApp (bridge must run) |
 
 Every analysis returns the same Evidence object: `risk_level`, `explanation`,
 `items[]` (each with `signals[]`, URL.vet result), message-level `signals[]`

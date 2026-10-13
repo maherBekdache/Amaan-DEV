@@ -96,6 +96,21 @@ text never appear in logs.
 - Container: non-root user, read-only root filesystem, all capabilities
   dropped, `no-new-privileges`.
 
+## D10. WhatsApp: export import by default, Baileys live mode opt-in
+*Requested by the team, Oct 2026. Comparison: `FEASIBILITY.md`.*
+
+- Chat-export import (`/import/chat`): processed in memory, nothing kept.
+- Live mode: separate `whatsapp-bridge` service (Baileys), started only with
+  `start-whatsapp.bat` / the `whatsapp` Compose profile, not published on any host port.
+- Only chats the user ticks are read; only new incoming messages; never sends,
+  never marks as read, never appears online.
+- On disk: the WhatsApp login session and the selected chat ids (Docker volume
+  `wa_session`). "Unlink WhatsApp" deletes both and removes the linked device.
+- Flagged messages are kept in RAM only (last 50, snippet ≤ 400 characters).
+- The bridge must present a random shared secret (`AMAAN_BRIDGE_TOKEN`, generated
+  into the git-ignored `.env` by the scripts) to submit messages.
+- Unofficial client: **test numbers only** (ban risk), shown in the UI.
+
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`.
 - [ ] Decide on Lookyloo "deep inspect" (see `LINK_TOOLS_COMPARISON.md`).

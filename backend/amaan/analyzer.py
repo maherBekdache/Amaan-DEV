@@ -40,6 +40,20 @@ def _url_pending(u: ExtractedUrl, source: ItemSource) -> _Pending:
     )
 
 
+@dataclass
+class LinkBudget:
+    """How many new links may still go to URL.vet, plus results already fetched."""
+
+    limit: int
+    remaining: int = -1
+    cache: dict[str, UrlVetResult] = field(default_factory=dict)
+    queued: set[str] = field(default_factory=set)
+
+    def __post_init__(self) -> None:
+        if self.remaining < 0:
+            self.remaining = self.limit
+
+
 def _key(url: str) -> str:
     return url.lower().split("://", 1)[-1].rstrip("/")
 
@@ -49,18 +63,38 @@ class Analyzer:
         self.s = settings
         self.urlvet = urlvet
 
-    async def _check_urls(self, pending: list[_Pending], warnings: list[str]) -> int:
-        to_check = [p for p in pending if p.check_url]
-        limit = self.s.max_urls_per_request
-        for p in to_check[limit:]:
-            p.urlvet = UrlVetResult(status=UrlVetStatus.skipped,
-                                    message=f"Only the first {limit} links are checked per request.")
-        if len(to_check) > limit:
-            warnings.append(f"{len(to_check)} links found; only the first {limit} were sent to URL.vet.")
+    async def _check_urls(self, pending: list[_Pending], warnings: list[str],
+                          budget: "LinkBudget | None" = None) -> int:
+        """Send links to URL.vet, at most `budget.remaining` new ones (URL.vet allows
+        20 checks a minute). A shared budget lets one chat import check each link once."""
+        budget = budget or LinkBudget(self.s.max_urls_per_request)
+        to_send: list[_Pending] = []
+        skipped = 0
+        for p in (p for p in pending if p.check_url):
+            k = _key(p.check_url)
+            if k in budget.cache:
+                p.urlvet = budget.cache[k].model_copy()
+            elif k in budget.queued or budget.remaining > 0:
+                if k not in budget.queued:
+                    budget.queued.add(k)
+                    budget.remaining -= 1
+                to_send.append(p)
+            else:
+                skipped += 1
+                p.urlvet = UrlVetResult(status=UrlVetStatus.skipped,
+                                        message=f"Not checked: limit of {budget.limit} links per check reached.")
+        if skipped:
+            warnings.append(f"{skipped} link(s) were not sent to URL.vet (limit {budget.limit} per check).")
         t0 = time.perf_counter()
-        results = await asyncio.gather(*(self.urlvet.analyze(p.check_url) for p in to_check[:limit]))
-        for p, r in zip(to_check[:limit], results):
-            p.urlvet = r
+        unique: dict[str, _Pending] = {}
+        for p in to_send:
+            unique.setdefault(_key(p.check_url), p)
+        results = await asyncio.gather(*(self.urlvet.analyze(p.check_url) for p in unique.values()))
+        for k, r in zip(unique.keys(), results):
+            budget.cache[k] = r
+            budget.queued.discard(k)
+        for p in to_send:
+            p.urlvet = budget.cache[_key(p.check_url)].model_copy()
         return int((time.perf_counter() - t0) * 1000)
 
     def _finish(self, input_type: InputType, pending: list[_Pending], message_signals: list[Signal],
@@ -108,7 +142,7 @@ class Analyzer:
 
     # --- text ------------------------------------------------------------------
 
-    async def analyze_text(self, req: TextRequest) -> Evidence:
+    async def analyze_text(self, req: TextRequest, budget: LinkBudget | None = None) -> Evidence:
         t0 = time.perf_counter()
         warnings: list[str] = []
         text = req.text or ""
@@ -165,14 +199,15 @@ class Analyzer:
                 add(_url_pending(u, ItemSource.text))
 
         message_signals = local_rules.text_flag_signals(flags) + text_cues.text_cue_signals(extraction.cleaned_text)
-        urlvet_ms = await self._check_urls(pending, warnings)
+        urlvet_ms = await self._check_urls(pending, warnings, budget)
         stats = {"links_found": sum(1 for p in pending if p.kind is ItemKind.url), "urlvet_ms": urlvet_ms,
                  "total_ms": int((time.perf_counter() - t0) * 1000)}
         return self._finish(InputType.text, pending, message_signals, warnings, stats, "text")
 
     # --- image / camera --------------------------------------------------------
 
-    async def analyze_qr(self, qr: QRResult, input_type: InputType) -> Evidence:
+    async def analyze_qr(self, qr: QRResult, input_type: InputType,
+                         budget: LinkBudget | None = None) -> Evidence:
         t0 = time.perf_counter()
         warnings: list[str] = []
         pending: list[_Pending] = []
@@ -208,7 +243,7 @@ class Analyzer:
         if len(qr.codes) >= self.s.max_qr_codes_per_image:
             warnings.append(f"Only the first {self.s.max_qr_codes_per_image} QR codes were analyzed.")
 
-        urlvet_ms = await self._check_urls(pending, warnings)
+        urlvet_ms = await self._check_urls(pending, warnings, budget)
         stats = {"qr_codes": len(qr.codes), "image": f"{qr.width}x{qr.height} {qr.format}",
                  "decode_ms": qr.elapsed_ms, "urlvet_ms": urlvet_ms,
                  "decoders": ",".join(sorted({d for c in qr.codes for d in c.decoders})) or "none",

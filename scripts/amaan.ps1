@@ -5,6 +5,7 @@
 .EXAMPLE
   .\scripts\amaan.ps1 up            # URL.vet + Amaan, then open http://localhost:8000
   .\scripts\amaan.ps1 up -UrlvetUi  # also start URL.vet's own web UI on :3000
+  .\scripts\amaan.ps1 up -WhatsApp  # also start the optional WhatsApp bridge
   .\scripts\amaan.ps1 status
   .\scripts\amaan.ps1 down
   .\scripts\amaan.ps1 update-urlvet # move URL.vet to the pinned ref again
@@ -17,6 +18,7 @@ param(
   [ValidateSet("setup", "up", "down", "status", "logs", "update-urlvet", "dev", "test")]
   [string]$Command = "up",
   [switch]$UrlvetUi,
+  [switch]$WhatsApp,
   [switch]$Mock
 )
 
@@ -80,6 +82,11 @@ function Invoke-Setup {
     [IO.File]::WriteAllText($serverEnv, $tpl, $Utf8)
     [IO.File]::WriteAllText($composeEnv, "CACHE_PASSWORD=$cache`n", $Utf8)
   }
+  # Shared secret between Amaan and the WhatsApp bridge (read by docker compose from .env).
+  $rootEnv = Join-Path $Root ".env"
+  if (-not (Test-Path $rootEnv) -or -not (Select-String -Path $rootEnv -Pattern "^AMAAN_BRIDGE_TOKEN=" -Quiet)) {
+    [IO.File]::AppendAllText($rootEnv, "AMAAN_BRIDGE_TOKEN=$(New-Secret)`n", $Utf8)
+  }
   if (-not (Test-Native docker @("network", "inspect", $Network))) {
     Invoke-Checked docker @("network", "create", $Network) | Out-Null
   }
@@ -128,9 +135,10 @@ switch ($Command) {
     if ($UrlvetUi) { $services += "web" }
     Write-Host "==> Building and starting URL.vet ($($services -join ', '))" -ForegroundColor Cyan
     Invoke-Checked docker ((Get-UrlvetCompose) + @("up", "-d", "--build") + $services)
-    Write-Host "==> Building and starting Amaan" -ForegroundColor Cyan
     Push-Location $Root
-    try { Invoke-Checked docker @("compose", "up", "-d", "--build") } finally { Pop-Location }
+    $profileArgs = if ($WhatsApp) { @("--profile", "whatsapp") } else { @() }
+    Write-Host "==> Building and starting Amaan$(if ($WhatsApp) { ' + WhatsApp bridge' })" -ForegroundColor Cyan
+    try { Invoke-Checked docker (@("compose") + $profileArgs + @("up", "-d", "--build")) } finally { Pop-Location }
     if (Wait-Healthy "http://localhost:8000/health" 90) {
       Write-Host "`nAmaan is running:  http://localhost:8000" -ForegroundColor Green
       Write-Host "URL.vet API:       http://localhost:8080/swagger/index.html"
@@ -143,7 +151,7 @@ switch ($Command) {
 
   "down" {
     Push-Location $Root
-    try { Invoke-Checked docker @("compose", "down") } finally { Pop-Location }
+    try { Invoke-Checked docker @("compose", "--profile", "whatsapp", "down") } finally { Pop-Location }
     if (Test-Path $UrlvetDir) { Invoke-Checked docker ((Get-UrlvetCompose) + @("down")) }
   }
 

@@ -132,3 +132,38 @@ class HealthResponse(BaseModel):
     version: str
     urlvet: dict[str, object]
     qr_decoders: dict[str, bool]
+
+
+class ImportFinding(BaseModel):
+    index: int
+    date: str
+    time: str
+    sender: str
+    text: str = Field(description="The message (truncated); kept in memory only for this response")
+    attachment: str | None = None
+    evidence: Evidence
+
+
+class ImportReport(BaseModel):
+    title: str
+    risk_level: RiskLevel
+    messages_total: int
+    messages_checked: int
+    links_found: int
+    links_checked: int
+    images_checked: int
+    findings: list[ImportFinding]
+    warnings: list[str] = []
+    stats: dict[str, int | float | str] = {}
+
+
+class WhatsAppAlert(BaseModel):
+    """A flagged message from a chat the user chose to watch. Kept in RAM only (last 50)."""
+
+    id: int
+    received_at: datetime
+    chat_name: str
+    sender: str
+    kind: str
+    text: str
+    evidence: Evidence

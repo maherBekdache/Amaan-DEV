@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start/stop the Amaan stack from WSL, Linux or macOS.
-#   ./scripts/amaan.sh up [--urlvet-ui] | down | status | logs | setup | update-urlvet
+#   ./scripts/amaan.sh up [--urlvet-ui|--whatsapp] | down | status | logs | setup | update-urlvet
 #   ./scripts/amaan.sh dev [--mock]   hot-reload backend :8000 + frontend :5173
 #                                     (--mock = FAKE URL.vet, development only)
 #   ./scripts/amaan.sh test           backend tests + frontend type check
@@ -37,6 +37,8 @@ setup() {
       "$ROOT/infra/urlvet/server.env.template" > "$URLVET_DIR/server/.env"
     printf 'CACHE_PASSWORD=%s\n' "$cache" > "$URLVET_DIR/docker/prod/.env"
   fi
+  # Shared secret between Amaan and the WhatsApp bridge (read by docker compose from .env).
+  grep -qs '^AMAAN_BRIDGE_TOKEN=' "$ROOT/.env" || printf 'AMAAN_BRIDGE_TOKEN=%s\n' "$(secret)" >> "$ROOT/.env"
   docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK" >/dev/null
 }
 
@@ -79,7 +81,9 @@ case "$CMD" in
     echo "==> Building and starting URL.vet (${services[*]})"
     urlvet_compose up -d --build "${services[@]}"
     echo "==> Building and starting Amaan"
-    (cd "$ROOT" && docker compose up -d --build)
+    profile=()
+    [ "$UI" = "--whatsapp" ] && profile=(--profile whatsapp)
+    (cd "$ROOT" && docker compose "${profile[@]}" up -d --build)
     for _ in $(seq 1 45); do
       if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
         echo; echo "Amaan is running:  http://localhost:8000"
@@ -91,7 +95,7 @@ case "$CMD" in
     echo "Amaan did not answer yet. Check: ./scripts/amaan.sh logs" >&2
     ;;
   down)
-    (cd "$ROOT" && docker compose down)
+    (cd "$ROOT" && docker compose --profile whatsapp down)
     [ -d "$URLVET_DIR" ] && urlvet_compose down
     ;;
   status)
@@ -105,5 +109,5 @@ case "$CMD" in
     git -C "$URLVET_DIR" -c advice.detachedHead=false checkout --quiet "$URLVET_REF"
     echo "URL.vet is at $URLVET_REF. Run './scripts/amaan.sh up' to rebuild."
     ;;
-  *) echo "usage: $0 up [--urlvet-ui] | down | status | logs | setup | update-urlvet | dev [--mock] | test" >&2; exit 2 ;;
+  *) echo "usage: $0 up [--urlvet-ui|--whatsapp] | down | status | logs | setup | update-urlvet | dev [--mock] | test" >&2; exit 2 ;;
 esac

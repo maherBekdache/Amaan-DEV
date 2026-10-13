@@ -22,3 +22,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.tsbuildinfo
+
+# WhatsApp login session (never commit)
+wa-session/

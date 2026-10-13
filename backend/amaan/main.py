@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from amaan import __version__
 from amaan.analyzer import Analyzer
+from amaan.api import whatsapp
 from amaan.clients.urlvet import UrlVetClient
 from amaan.config import get_settings
 from amaan.extract.qr import ImageRejected, available_decoders, decode_qr_codes
@@ -55,16 +56,16 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_me
 @app.middleware("http")
 async def guard(request: Request, call_next):
     # Reject oversized bodies before they are read or spooled to disk.
+    limit = settings.max_import_bytes if request.url.path == "/import/chat" else settings.max_upload_bytes
     length = request.headers.get("content-length")
-    if length and length.isdigit() and int(length) > settings.max_upload_bytes + 64 * 1024:
-        return JSONResponse({"detail": f"Upload too large (max {settings.max_upload_bytes // (1024 * 1024)} MB)."},
-                            status_code=413)
+    if length and length.isdigit() and int(length) > limit + 64 * 1024:
+        return JSONResponse({"detail": f"Upload too large (max {limit // (1024 * 1024)} MB)."}, status_code=413)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    if request.url.path.startswith(("/analyze", "/health")):
+    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import")):
         response.headers["Cache-Control"] = "no-store"
     else:
         response.headers["Content-Security-Policy"] = CSP
@@ -105,6 +106,9 @@ async def analyze_image(request: Request, file: UploadFile = File(...),
         await file.close()
         data = b""
     return await request.app.state.analyzer.analyze_qr(qr, input_type)
+
+
+app.include_router(whatsapp.router)
 
 
 # --- built frontend (production / Docker) ------------------------------------

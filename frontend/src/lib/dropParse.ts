@@ -11,6 +11,7 @@ const AUDIO_EXT = /\.(opus|ogg|m4a|mp3|wav|aac)$/i;
 
 export type Incoming =
   | { kind: "image"; file: File }
+  | { kind: "chat_export"; file: File }
   | { kind: "text"; text: string; html?: string; uri_list?: string }
   | { kind: "unsupported"; reason: string }
   | { kind: "empty" };
@@ -27,8 +28,8 @@ export function fromFiles(files: FileList | File[]): Incoming {
   if (f.type.startsWith("image/")) {
     return { kind: "unsupported", reason: `"${f.type}" images are not supported. Use PNG, JPG or WebP.` };
   }
-  if (f.type === "text/plain" || /\.txt$/i.test(f.name)) {
-    return { kind: "unsupported", reason: "Text files: open the file and paste its text instead (chat import comes later)." };
+  if (/\.(txt|zip)$/i.test(f.name) || f.type === "text/plain" || f.type.includes("zip")) {
+    return { kind: "chat_export", file: f }; // WhatsApp "Export chat" file
   }
   return { kind: "unsupported", reason: `Can't analyze "${f.name}" (${f.type || "unknown type"}).` };
 }
