@@ -161,3 +161,11 @@ def test_ingest_image_with_qr(client):
     r = client.post("/whatsapp/ingest", headers=h, data={"kind": "image", "chat_name": "Group"},
                     files={"file": ("w.jpg", img, "image/jpeg")})
     assert r.json()["stored"] is True
+
+
+def test_add_chat_by_number_proxy(client):
+    route = client.mock.post(f"{BRIDGE}/chats").mock(return_value=httpx.Response(200, json={"id": "961@s", "selected": 1}))
+    assert client.post("/whatsapp/chats", json={"number": "+961 70 123 456"}).json()["selected"] == 1
+    assert route.calls.last.request.content == b'{"number":"+961 70 123 456"}'
+    client.mock.post(f"{BRIDGE}/chats").mock(return_value=httpx.Response(400, json={"detail": "Enter a full number"}))
+    assert client.post("/whatsapp/chats", json={"number": "1"}).status_code == 400

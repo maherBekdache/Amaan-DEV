@@ -81,3 +81,31 @@ test("HTTP API: status, chats and selection", async () => {
     server.close();
   }
 });
+
+test("chat list survives a restart and merges privacy ids with phone ids", () => {
+  const dir = tmp();
+  const c = new Chats(dir);
+  c.upsert("999@lid", null); // first seen only by privacy id
+  c.upsertContact({ id: "96170111222@s.whatsapp.net", name: "Taha", lid: "999@lid" });
+  c.upsertWeak("96170111222@s.whatsapp.net", "T-bone"); // sender's own name never overrides the contact name
+  c.select(["999@lid"]); // selecting either id selects the person
+  c.flush();
+  const again = new Chats(dir);
+  assert.deepEqual(again.list().map((x) => [x.id, x.name, x.selected]), [["96170111222@s.whatsapp.net", "Taha", true]]);
+  assert.equal(again.isSelected(["999@lid"]), true);
+  assert.equal(again.nameOf(["999@lid"]), "Taha");
+});
+
+test("add a chat by phone number", () => {
+  const c = new Chats(tmp());
+  const id = c.addNumber("+961 70 123 456");
+  assert.equal(id, "96170123456@s.whatsapp.net");
+  assert.equal(c.list()[0].selected, true);
+  assert.throws(() => c.addNumber("123"), /country code/);
+});
+
+test("unsaved privacy-id contacts are not shown as phone numbers", () => {
+  const c = new Chats(tmp());
+  c.upsert("123456789@lid", null);
+  assert.equal(c.list()[0].name, "Unsaved contact");
+});

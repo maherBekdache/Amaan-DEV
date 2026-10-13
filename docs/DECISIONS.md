@@ -104,8 +104,9 @@ text never appear in logs.
   `start-whatsapp.bat` / the `whatsapp` Compose profile, not published on any host port.
 - Only chats the user ticks are read; only new incoming messages; never sends,
   never marks as read, never appears online.
-- On disk: the WhatsApp login session and the selected chat ids (Docker volume
-  `wa_session`). "Unlink WhatsApp" deletes both and removes the linked device.
+- On disk: the WhatsApp login session, the selected chat ids and the chat list
+  (ids + names only, so the picker survives restarts) in the Docker volume
+  `wa_session`. "Unlink WhatsApp" deletes all of it and removes the linked device.
 - Flagged messages are kept in RAM only (last 50, snippet ≤ 400 characters).
 - The bridge must present a random shared secret (`AMAAN_BRIDGE_TOKEN`, generated
   into the git-ignored `.env` by the scripts) to submit messages.

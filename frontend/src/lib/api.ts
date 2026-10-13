@@ -72,6 +72,12 @@ export const wa = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_ids }),
     }),
+  addNumber: (number: string) =>
+    call<{ id: string; selected: number }>("/whatsapp/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ number }),
+    }),
   alerts: () => call<WaAlert[]>("/whatsapp/alerts"),
   clearAlerts: () => call<{ cleared: boolean }>("/whatsapp/alerts", { method: "DELETE" }),
 };

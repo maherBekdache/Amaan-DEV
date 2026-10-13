@@ -53,9 +53,10 @@ export function isIgnoredChat(jid) {
 
 /** Only new, incoming messages from chats the user selected. */
 export function shouldCheck(msg, upsertType, selection) {
+  // `selection` is a Set of chat ids, or anything with isSelected(ids) (see Chats).
   if (upsertType !== "notify") return false; // skip history sync and our own appends
   if (!msg?.key || msg.key.fromMe) return false; // never look at what the user sends
   const ids = chatIdsOf(msg.key);
   if (ids.some(isIgnoredChat)) return false;
-  return ids.some((id) => selection.has(id));
+  return typeof selection.isSelected === "function" ? selection.isSelected(ids) : ids.some((id) => selection.has(id));
 }

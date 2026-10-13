@@ -18,3 +18,14 @@ makeServer(wa, chats).listen(port, host, () => console.log(`WhatsApp bridge list
 
 // Reconnect automatically if this computer was linked before.
 if (wa.hasSession()) wa.connect().catch((e) => console.warn("reconnect failed:", e.message));
+
+// Save the chat list before Docker stops the container.
+for (const sig of ["SIGTERM", "SIGINT"]) {
+  process.on(sig, () => {
+    try {
+      chats.flush();
+    } finally {
+      process.exit(0);
+    }
+  });
+}

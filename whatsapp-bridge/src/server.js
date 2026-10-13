@@ -13,6 +13,7 @@ export function makeServer(wa, chats) {
       return wa.status();
     },
     "GET /chats": () => ({ chats: chats.list() }),
+    "POST /chats": (body) => ({ id: chats.addNumber(body?.number), selected: chats.selection.size }),
     "PUT /selection": (body) => {
       if (!Array.isArray(body?.chat_ids)) throw Object.assign(new Error("chat_ids must be a list"), { status: 400 });
       chats.select(body.chat_ids);
@@ -25,7 +26,7 @@ export function makeServer(wa, chats) {
     try {
       if (!handler) throw Object.assign(new Error("not found"), { status: 404 });
       let body = null;
-      if (req.method === "PUT") {
+      if (req.method === "PUT" || req.method === "POST") {
         let raw = "";
         for await (const chunk of req) {
           raw += chunk;

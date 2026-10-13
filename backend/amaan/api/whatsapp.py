@@ -167,6 +167,12 @@ async def whatsapp_chats() -> dict:
     return await _bridge("GET", "/chats")
 
 
+@router.post("/whatsapp/chats")
+async def whatsapp_add_chat(body: dict) -> dict:
+    """Add (and select) a chat by phone number, for chats WhatsApp never listed."""
+    return await _bridge("POST", "/chats", json={"number": str(body.get("number", ""))[:32]})
+
+
 @router.put("/whatsapp/selection")
 async def whatsapp_selection(body: dict) -> dict:
     return await _bridge("PUT", "/selection", json={"chat_ids": body.get("chat_ids", [])})

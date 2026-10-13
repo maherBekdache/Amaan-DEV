@@ -71,22 +71,25 @@ export class WhatsApp {
     sock.ev.on("connection.update", (u) => this.#onConnection(u));
 
     // Chat names for the picker (no message content is kept).
-    sock.ev.on("messaging-history.set", ({ chats, contacts }) => {
+    sock.ev.on("messaging-history.set", ({ chats, contacts, lidPnMappings }) => {
+      for (const m of lidPnMappings ?? []) this.chats.link(m.pn, m.lid);
+      for (const c of contacts ?? []) this.chats.upsertContact(c);
       for (const c of chats ?? []) this.chats.upsert(c.id, c.name);
-      for (const c of contacts ?? []) this.chats.upsert(c.id, c.name ?? c.notify ?? c.verifiedName);
     });
+    sock.ev.on("lid-mapping.update", ({ lid, pn }) => this.chats.link(pn, lid));
     sock.ev.on("chats.upsert", (list) => list.forEach((c) => this.chats.upsert(c.id, c.name)));
-    sock.ev.on("contacts.upsert", (list) => list.forEach((c) => this.chats.upsert(c.id, c.name ?? c.notify)));
-    sock.ev.on("contacts.update", (list) => list.forEach((c) => c.id && this.chats.upsert(c.id, c.name ?? c.notify)));
+    sock.ev.on("contacts.upsert", (list) => list.forEach((c) => this.chats.upsertContact(c)));
+    sock.ev.on("contacts.update", (list) => list.forEach((c) => this.chats.upsertContact(c)));
     sock.ev.on("groups.upsert", (list) => list.forEach((g) => this.chats.upsert(g.id, g.subject, true)));
 
     sock.ev.on("messages.upsert", ({ messages, type }) => {
       for (const msg of messages) {
         const ids = chatIdsOf(msg.key);
-        if (type === "notify" && !msg.key?.fromMe && msg.pushName && !ids[0]?.endsWith("@g.us")) {
-          ids.forEach((id) => this.chats.upsert(id, msg.pushName)); // so new chats show up in the picker
+        if (ids.length === 2) this.chats.link(ids[0], ids[1]); // privacy id <-> phone id
+        if (type === "notify" && !msg.key?.fromMe && !ids[0]?.endsWith("@g.us")) {
+          this.chats.upsertWeak(ids[0], msg.pushName); // new chats show up in the picker
         }
-        if (shouldCheck(msg, type, this.chats.selection)) {
+        if (shouldCheck(msg, type, this.chats)) {
           this.#check(msg).catch((e) => log.warn({ err: e.message }, "check failed"));
         }
       }

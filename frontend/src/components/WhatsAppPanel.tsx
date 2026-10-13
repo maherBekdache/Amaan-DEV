@@ -198,7 +198,21 @@ function ChatPicker() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState(false);
+  const [number, setNumber] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
   const loadedOnce = useRef(false);
+
+  const addNumber = async () => {
+    setAddError(null);
+    try {
+      const { id } = await wa.addNumber(number);
+      setPicked((p) => new Set(p).add(id));
+      setNumber("");
+      await load();
+    } catch (e) {
+      setAddError(e instanceof ApiError ? e.message : "Could not add this number.");
+    }
+  };
 
   const load = useCallback(async () => {
     const { chats } = await wa.chats();
@@ -215,7 +229,7 @@ function ChatPicker() {
   }, [load]);
 
   const shown = useMemo(
-    () => chats.filter((c) => c.name.toLowerCase().includes(query.toLowerCase())).slice(0, 200),
+    () => chats.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()) || c.id.startsWith(query.replace(/[^\d]/g, "") || "~")),
     [chats, query],
   );
 
@@ -233,6 +247,7 @@ function ChatPicker() {
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h3 className="font-semibold">Chats to watch</h3>
+        <span className="text-xs text-slate-400">{chats.length} found</span>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -261,7 +276,24 @@ function ChatPicker() {
           ))}
         </ul>
       )}
-      <p className="mt-1 text-xs text-slate-400">Only the chats you tick are ever read. Your choice is saved on this computer.</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-slate-500">Missing someone? Add by number:</span>
+        <input
+          value={number}
+          onChange={(e) => setNumber(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && number.trim() && addNumber()}
+          placeholder="+961 70 123 456"
+          className="w-44 rounded-lg border border-slate-300 px-3 py-1"
+        />
+        <button onClick={addNumber} disabled={!number.trim()} className="rounded-lg border border-slate-300 px-3 py-1 hover:bg-slate-50 disabled:opacity-40">
+          Add &amp; watch
+        </button>
+        {addError && <span className="text-red-700">{addError}</span>}
+      </div>
+      <p className="mt-1 text-xs text-slate-400">
+        Only the chats you tick are ever read. Contacts load right after linking and are remembered (names only) until you
+        unlink.
+      </p>
     </div>
   );
 }
