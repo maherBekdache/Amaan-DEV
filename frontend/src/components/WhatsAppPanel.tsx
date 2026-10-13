@@ -153,10 +153,21 @@ function LiveCard() {
             </ol>
           </div>
         ) : status.state === "connecting" ? (
-          <p className="flex items-center gap-2 text-sm">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
-            Connecting to WhatsApp…
-          </p>
+          <div className="space-y-2">
+            <p className="flex items-center gap-2 text-sm">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
+              Connecting to WhatsApp… (up to a minute)
+            </p>
+            {status.error && <p className="text-sm text-amber-800">{status.error}</p>}
+            <button
+              disabled={busy}
+              onClick={() => act(wa.logout)}
+              className="text-sm text-slate-500 underline hover:text-red-700"
+              title="Clears the saved WhatsApp login so you can scan a new QR code"
+            >
+              Stuck? Start over (link again with a new QR)
+            </button>
+          </div>
         ) : (
           <div>
             {status.error && <p className="mb-2 text-sm text-slate-600">{status.error}</p>}

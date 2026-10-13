@@ -22,7 +22,10 @@ const log = pino({ level: process.env.LOG_LEVEL ?? "warn" }); // never "debug": 
 
 export class WhatsApp {
   /** @param {{authDir: string, chats: import("./chats.js").Chats, forward: Function}} opts */
-  constructor({ authDir, chats, forward }) {
+  constructor({ authDir, chats, forward, makeSocket = makeWASocket, loadAuth = useMultiFileAuthState, fetchVersion = fetchLatestBaileysVersion }) {
+    this.makeSocket = makeSocket; // injectable for tests
+    this.loadAuth = loadAuth;
+    this.fetchVersion = fetchVersion;
     this.authDir = authDir;
     this.chats = chats;
     this.forward = forward;
@@ -44,18 +47,33 @@ export class WhatsApp {
     return fs.existsSync(`${this.authDir}/creds.json`);
   }
 
-  async connect() {
-    if (this.sock) return;
+  /** Start (or resume) the WhatsApp connection. Safe to call repeatedly. */
+  connect() {
+    if (this.sock || this.connecting) return this.connecting ?? Promise.resolve();
+    this.connecting = this.#open()
+      .catch((e) => this.#fail(e))
+      .finally(() => {
+        this.connecting = null;
+      });
+    return this.connecting;
+  }
+
+  async #open() {
     this.state = "connecting";
     this.error = null;
-    const { state: auth, saveCreds } = await useMultiFileAuthState(this.authDir);
+    this.#startWatchdog();
+    const { state: auth, saveCreds } = await this.loadAuth(this.authDir);
     let version;
     try {
-      ({ version } = await fetchLatestBaileysVersion());
+      // Never let this lookup hang the connection.
+      ({ version } = await Promise.race([
+        this.fetchVersion(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+      ]));
     } catch {
       /* fall back to the version bundled with Baileys */
     }
-    const sock = makeWASocket({
+    const sock = this.makeSocket({
       auth,
       version,
       logger: log,
@@ -118,12 +136,15 @@ export class WhatsApp {
 
   async #onConnection({ connection, lastDisconnect, qr }) {
     if (qr) {
+      clearTimeout(this.watchdog); // waiting for the user to scan is not a hang
       this.state = "qr";
       this.qr = await QRCode.toDataURL(qr, { margin: 1, width: 280 });
     }
     if (connection === "open") {
+      clearTimeout(this.watchdog);
       this.state = "connected";
       this.qr = null;
+      this.error = null;
       this.retries = 0;
       this.me = { id: this.sock.user?.id ?? null, name: this.sock.user?.name ?? null };
       try {
@@ -138,27 +159,64 @@ export class WhatsApp {
       const wasPairing = this.state === "qr";
       this.sock = null;
       this.me = null;
-      if (code === DisconnectReason.loggedOut) {
+      const R = DisconnectReason;
+      if (code === R.loggedOut || code === R.badSession) {
+        this.#stop();
         this.#forget();
-        this.error = "WhatsApp was unlinked from the phone.";
-      } else if (wasPairing && code === DisconnectReason.timedOut) {
+        this.error = code === R.loggedOut
+          ? "WhatsApp was unlinked from the phone. Click 'Link WhatsApp' to link again."
+          : "The saved WhatsApp login was damaged and has been cleared. Click 'Link WhatsApp' to link again.";
+      } else if (code === R.forbidden) {
+        this.#stop();
+        this.state = "idle";
+        this.error = "WhatsApp refused this connection (the number may be restricted). Try another test number.";
+      } else if (code === R.connectionReplaced) {
+        this.#stop();
+        this.state = "idle";
+        this.error = "Another WhatsApp Web session took over this link (e.g. a second copy of Amaan). Close it, then click 'Link WhatsApp'.";
+      } else if (wasPairing && code === R.timedOut) {
+        this.#stop();
         this.state = "idle"; // QR expired: wait for the user to try again
         this.qr = null;
         this.error = "The QR code expired. Click 'Link WhatsApp' to get a new one.";
+      } else if (code === R.restartRequired) {
+        this.connect(); // normal right after scanning the QR
       } else if (this.retries < 5) {
         this.retries += 1;
         this.state = "connecting";
-        setTimeout(() => this.connect().catch((e) => this.#fail(e)), 2000 * this.retries);
+        this.error = `Connection dropped (${reasonText(code)}). Retrying ${this.retries}/5…`;
+        this.retryTimer = setTimeout(() => this.connect(), 2000 * this.retries);
       } else {
-        this.#fail(lastDisconnect?.error ?? new Error("connection closed"));
+        this.#fail(lastDisconnect?.error ?? new Error(reasonText(code)));
       }
     }
   }
 
   #fail(e) {
+    this.#stop();
     this.state = "idle";
+    this.error = `Could not connect to WhatsApp (${e?.message ?? e}). Check the internet connection, then click 'Link WhatsApp'.`;
+  }
+
+  /** If we are still not connected after 90 s, give up instead of spinning forever. */
+  #startWatchdog() {
+    clearTimeout(this.watchdog);
+    this.watchdog = setTimeout(() => {
+      if (this.state === "connecting") this.#fail(new Error("no answer from WhatsApp after 90 s"));
+    }, 90_000);
+    this.watchdog.unref?.();
+  }
+
+  #stop() {
+    clearTimeout(this.watchdog);
+    clearTimeout(this.retryTimer); // a pending retry must not revive a stopped connection
+    this.retries = 0;
+    try {
+      this.sock?.end?.(undefined);
+    } catch {
+      /* already closed */
+    }
     this.sock = null;
-    this.error = `Could not connect to WhatsApp (${e?.message ?? e}).`;
   }
 
   #forget() {
@@ -168,15 +226,21 @@ export class WhatsApp {
     fs.rmSync(this.authDir, { recursive: true, force: true }); // session keys + selection
   }
 
+  /** Unlink (or "start over" when stuck): removes the login, chat list and selection. */
   async logout() {
     try {
-      await this.sock?.logout(); // also removes "Amaan" from the phone's Linked devices
+      await Promise.race([this.sock?.logout(), new Promise((r) => setTimeout(r, 5000))]); // removes "Amaan" from Linked devices
     } catch {
       /* already gone */
     }
-    this.sock?.end?.(undefined);
-    this.sock = null;
+    this.#stop();
     this.#forget();
     this.error = null;
   }
+}
+
+function reasonText(code) {
+  const names = { 401: "logged out", 403: "refused", 408: "timed out", 411: "device mismatch", 428: "connection closed",
+                  440: "replaced by another session", 500: "bad session", 503: "WhatsApp unavailable", 515: "restart required" };
+  return names[code] ? `${names[code]}, code ${code}` : `code ${code ?? "unknown"}`;
 }

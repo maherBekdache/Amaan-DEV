@@ -17,7 +17,7 @@ const wa = new WhatsApp({ authDir, chats, forward: makeForwarder({ backendUrl, t
 makeServer(wa, chats).listen(port, host, () => console.log(`WhatsApp bridge listening on ${host}:${port}`));
 
 // Reconnect automatically if this computer was linked before.
-if (wa.hasSession()) wa.connect().catch((e) => console.warn("reconnect failed:", e.message));
+if (wa.hasSession()) wa.connect();
 
 // Save the chat list before Docker stops the container.
 for (const sig of ["SIGTERM", "SIGINT"]) {
