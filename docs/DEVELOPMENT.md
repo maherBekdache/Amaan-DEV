@@ -16,6 +16,10 @@ Windows (PowerShell, in the repo folder; first run
 | `.\scripts\amaan.ps1 dev -Mock` | same, without Docker: **fake** link verdicts, pink "MOCK" label |
 | `.\scripts\amaan.ps1 up` / `down` / `status` / `logs` | full stack (what `start.bat` / `stop.bat` call) |
 | `.\scripts\amaan.ps1 up -WhatsApp` | full stack + WhatsApp bridge (what `start-whatsapp.bat` calls) |
+| `.\scripts\amaan.ps1 up -Phone` | full stack + the phone link gateway on port 8001 |
+| `cd app; npx expo start` | phone app dev server (Expo Go on the phone, `w` for web) |
+| `cd app; npx tsc --noEmit` | phone app type check |
+| `cd packages\core; npm test` | on-device rules: parity tests against the backend examples |
 
 macOS / Linux / WSL: `./scripts/amaan.sh test | dev [--mock] | up | down | status | logs`.
 
@@ -46,6 +50,8 @@ backend/amaan/api/whatsapp.py, importers/   WhatsApp: chat-export import, alerts
 backend/devtools/    fake URL.vet for --mock
 whatsapp-bridge/     optional Node service (Baileys) for live WhatsApp; tests: cd whatsapp-bridge; npm test
 frontend/src/        React UI (App.tsx, components/)
+app/                 phone app (Expo): App.tsx screens, src/check.ts (hybrid flow), src/server.ts (pairing)
+packages/core/       on-device analysis shared by the apps (TypeScript port of backend/amaan, parity-tested)
 frontend/src/examples.json + public/examples/   built-in examples (regenerate: scripts/make_examples.py)
 infra/urlvet/        config for URL.vet (its code is cloned, unmodified, into third_party/)
 scripts/             amaan.ps1 / amaan.sh
@@ -58,6 +64,7 @@ scripts/             amaan.ps1 / amaan.sh
 | `POST /analyze/image` | multipart `file` (PNG/JPG/WebP), optional `source=camera` |
 | `GET /health` | status, URL.vet reachable, QR decoders |
 | `POST /import/chat` | multipart `file` (WhatsApp export .txt/.zip) |
+| `GET /gateway/health`, `POST /gateway/analyze/link` | phone app only: `Authorization: Bearer <pairing token>`, JSON `{urls}` |
 | `GET /whatsapp/status`, `POST /whatsapp/link`, `GET /whatsapp/chats`, `PUT /whatsapp/selection`, `GET /whatsapp/alerts` | live WhatsApp (bridge must run) |
 
 Every analysis returns the same Evidence object: `risk_level`, `explanation`,
@@ -78,3 +85,6 @@ and `warnings[]`. Every signal has a `label`: `automated_indicator`,
 | `429 Too Many Requests` while building | Docker Hub limit: wait 10 min or `docker login` |
 | Port 8000 in use | `stop.bat`, close other servers |
 | Camera doesn't start | use `http://localhost:8000` and allow the camera in the address bar |
+| Phone app: "Can't reach the computer" | same Wi-Fi (not AUB's: use a hotspot), allow port 8001 in Windows firewall, started with `start-everything.bat` |
+| Expo Go: "incompatible SDK" | update Expo Go from the store (the app uses Expo SDK 58) |
+| Phone can't load the app from `expo start` | `npx expo start --tunnel` (sends only the app's code through Expo's tunnel, not your data) |

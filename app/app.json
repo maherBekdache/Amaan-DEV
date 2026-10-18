@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Amaan",
+    "slug": "amaan",
+    "scheme": "amaan",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "lb.amaan.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Amaan uses the camera to read QR codes. Nothing is recorded or uploaded.",
+        "NSPhotoLibraryUsageDescription": "Amaan reads QR codes from screenshots you pick. The image stays on your phone."
+      }
+    },
+    "android": {
+      "package": "lb.amaan.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": ["android.permission.CAMERA"],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "Amaan",
+      "shortName": "Amaan",
+      "themeColor": "#0f172a"
+    },
+    "plugins": [
+      ["expo-camera", { "cameraPermission": "Amaan uses the camera to read QR codes. Nothing is recorded or uploaded.", "recordAudioAndroid": false }],
+      ["expo-image-picker", { "photosPermission": "Amaan reads QR codes from screenshots you pick. The image stays on your phone.", "cameraPermission": false, "microphonePermission": false }]
+    ]
+  }
+}

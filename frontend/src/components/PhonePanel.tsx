@@ -35,6 +35,11 @@ export default function PhonePanel() {
           <img src={qr} alt="Pairing QR code" className="h-56 w-56 rounded-lg border" />
           <div className="text-sm text-slate-600">
             <p>Server: <span className="font-mono">{p.server}</span></p>
+            <button type="button" className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              onClick={() => navigator.clipboard?.writeText(p.pair_uri ?? "")}>
+              Copy pairing link
+            </button>
+            <p className="mt-1 text-xs text-slate-400">For the app in a browser: paste it under “Connect to computer”.</p>
             <p className="mt-2 text-xs text-slate-400">The code contains a secret. Don't share a photo of it.</p>
           </div>
         </div>

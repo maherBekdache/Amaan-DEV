@@ -244,6 +244,11 @@ switch ($Command) {
     try { Invoke-Checked $py @("-m", "pytest", "-q") } finally { Pop-Location }
     Push-Location (Join-Path $Root "frontend")
     try { Invoke-Checked npm @("run", "typecheck") } finally { Pop-Location }
+    Push-Location (Join-Path $Root "packages\core")
+    try {
+      if (-not (Test-Path "node_modules")) { Invoke-Checked npm @("install", "--no-fund", "--no-audit") }
+      Invoke-Checked npm @("test")
+    } finally { Pop-Location }
     Write-Host "All checks passed." -ForegroundColor Green
   }
 }

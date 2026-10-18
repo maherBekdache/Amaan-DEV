@@ -151,6 +151,28 @@ Pages, …) are never flagged as a whole because of one listed page.
 - A cloud model may replace Ollama later through `ai/provider.py`; that needs a new
   decision because content would leave the machine (see FUTURE.md §1).
 
+## D13. One cross-platform app: React Native + Expo, hybrid checking
+*Approved by the team, Oct 2026.*
+
+- **Framework:** React Native + Expo (`app/`): one TypeScript code base for iOS,
+  Android and web; desktop = the web build installed from Chrome/Edge (an Electron
+  or Tauri wrapper can be added later if a store app is needed). Chosen over Flutter
+  because the team and the existing web UI are already React/TypeScript, and the
+  analysis code can be shared.
+- **Hybrid:** the phone runs the same rules as the server (`packages/core`, a
+  TypeScript port of `backend/amaan` kept identical by parity tests: same examples,
+  same `brands.json` / `cues.json`). Messages, QR contents and images never leave
+  the phone. Only the links found are sent to the paired computer, which checks them
+  in URL.vet and the reputation sources (D2, D11).
+- **Pairing:** the computer exposes only `/gateway/health` and
+  `/gateway/analyze/link` on the local network (port 8001, `start-everything.bat` /
+  `-Phone`), each call needing a random 256-bit token. The token reaches the phone
+  through a QR on the laptop screen (`amaan://pair?...`); the app asks before
+  connecting and warns if the address is outside the local network.
+- **Offline / unpaired:** the app still gives a verdict; links are marked
+  *not checked online* and are never shown as safe.
+- The app never opens a checked link: links are shown defanged and are not tappable.
+
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`.
 - [ ] Decide on Lookyloo "deep inspect" (see `LINK_TOOLS_COMPARISON.md`).

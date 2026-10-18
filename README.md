@@ -47,6 +47,27 @@ your own text, drop a screenshot, or click **Scan a QR with the camera**.
 - **Lookyloo** (opens links in a sandbox for the AI): start with **`start-everything.bat`** instead
   (first time 10-20 minutes).
 
+## Phone app (iOS, Android, web, desktop)
+One app in `app/` (React Native + Expo). It checks messages and QR codes **on the phone**;
+only links are sent to your computer's sandbox and security sources.
+
+**Install once:** [Node.js 22 LTS](https://nodejs.org/) on the computer, **Expo Go** on the phone (App Store / Play Store).
+
+1. Double-click **`start-everything.bat`** (allow it through the Windows firewall if asked).
+2. In PowerShell:
+   ```powershell
+   cd Amaan-DEV\app
+   npm install
+   npx expo start
+   ```
+3. Scan the QR code in the terminal: Android with **Expo Go**, iPhone with the **Camera** app.
+   Phone and computer must be on the **same Wi-Fi** (on AUB Wi-Fi, use your phone's hotspot instead).
+4. In the app tap **Connect to computer**, then scan the code in **http://localhost:8000 → 📱 Phone app**.
+
+**Web / desktop:** press `w` in the same terminal (opens the app in the browser; Chrome/Edge can
+*Install* it as a desktop app). Pair it with **Copy pairing link** on the 📱 Phone app tab.
+Without pairing, the app still works, but links are marked *not checked online*.
+
 Demo video plan: [docs/DEMO.md](docs/DEMO.md) · Future directions: [docs/FUTURE.md](docs/FUTURE.md).
 
 ## Work on it
@@ -59,3 +80,4 @@ Demo video plan: [docs/DEMO.md](docs/DEMO.md) · Future directions: [docs/FUTURE
 | 1 | Links + QR codes (text, drop, upload, webcam) | ✅ |
 | 2 | Lebanese voice-note transcription | next |
 | 3 | WhatsApp: chat-export import + live watching of selected chats | ✅ |
+| + | Phone app (iOS / Android / web / desktop), multi-source link check, AI second opinion | ✅ |

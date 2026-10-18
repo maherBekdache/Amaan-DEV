@@ -90,6 +90,7 @@ case "$CMD" in
     dev_env
     (cd "$ROOT/backend" && .venv/bin/python -m pytest -q)
     (cd "$ROOT/frontend" && npm run typecheck)
+    (cd "$ROOT/packages/core" && { [ -d node_modules ] || npm install --no-fund --no-audit; } && npm test)
     echo "All checks passed."
     ;;
   setup) setup; echo "Setup done." ;;
