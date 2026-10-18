@@ -1,0 +1,22 @@
+{
+  "name": "@amaan/core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "On-device analysis shared by the Amaan apps: link finding, QR payloads, local rules, Arabic/Arabizi scam cues, verdict. Same behavior as backend/amaan (parity-tested).",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "punycode": "^2.3.1",
+    "tldts": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/punycode": "^2.1.4",
+    "typescript": "^5.6.0",
+    "vitest": "^5.0.0"
+  }
+}

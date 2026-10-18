@@ -15,8 +15,10 @@ How it decides:
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from amaan.schemas import EvidenceLabel, Severity, Signal
@@ -82,58 +84,12 @@ class Cue:
     patterns: tuple[str, ...]
 
 
-CUES: tuple[Cue, ...] = (
-    Cue("asks_for_code", "Asks you to share a code",
-        "Banks, OMT, Whish and WhatsApp never ask you to send a verification code. Sharing it gives away your account.",
-        3,
-        (r"\b(otp|verification code|security code|pin code|6[- ]?digit code|whatsapp code)\b",
-         r"\b(send|forward|give|share|tell)( me)? (the |your |that |this )?(code|otp|pin)\b",
-         r"(رمز|كود) (التحقق|التاكيد|الامان|التفعيل)",
-         r"(ابعت|ابعتلي|بعتلي|ارسل|ارسلي|ابعث|اعطيني|عطيني)\s*(لي\s*)?(ال)?(كود|رمز|الرمز)")),
-    Cue("prize", "Prize, gift or lottery",
-        "Unexpected prizes that need a fee, a code or your details are a classic scam.",
-        2,
-        (r"\b(you('ve| have)? won|winner|claim your (prize|reward|gift)|free (gift|iphone)|lottery|prize)\b",
-         r"(ربحت|ربحتي|فزت|جايزه|جاءزه|هديه مجانيه|سحب على)")),
-    Cue("money_request", "Asks for money or a transfer",
-        "Requests to transfer money, pay a 'fee' or top up a number are the end goal of most scams.",
-        2,
-        (r"\b(transfer|send money|wire|top[- ]?up|recharge|usdt|bitcoin|crypto)\b",
-         r"\bpay\b[^.!?\n]{0,30}\b(fee|fees|charge|amount)\b",
-         r"(حول|حولي|حوللي|تحويل|ابعتلي مصاري|رسوم|اشحن|تشريج|ادفع)")),
-    Cue("urgency_threat", "Pressure or threat",
-        "Scams create urgency (account blocked, last chance) so you act before thinking.",
-        2,
-        (r"\b(urgent|immediately|within 24 hours|account (will be )?(suspended|blocked|closed|locked)|last (chance|warning))\b",
-         r"(عاجل|فورا|خلال 24 ساعه|سيتم (ايقاف|اغلاق|حظر|تعليق)|حسابك (موقوف|مقفل|محظور))")),
-    Cue("big_amount", "Promises or mentions a large amount of money",
-        "Big sums of money out of nowhere are bait.",
-        1,
-        (r"(\$\s?\d[\d,.]*|\d[\d,.]*\s?(\$|usd|dollars?|euros?|€))",
-         r"\b(million|millions|1m)\b",
-         r"(مليون|الف دولار|\d+\s*دولار)")),
-    Cue("click_link", "Pushes you to click a link",
-        "Messages that rush you to a link usually lead to a fake login or payment page.",
-        1,
-        (r"\b(click|tap|press|open)( on)? (here|the link|this link|below|now)\b",
-         r"(اضغط|انقر|اكبس|كبوس|ادخل)\s*(على|ع)?\s*(ال)?(رابط|لينك|ينك)",
-         r"(اضغط|انقر|اكبس) (هنا|هون)")),
-    Cue("delivery_lure", "Parcel or delivery pretext",
-        "Fake 'your parcel is waiting' messages lead to payment or login pages.",
-        1,
-        (r"\b(parcel|package|shipment|delivery|customs fee|track(ing)? your)\b",
-         r"(طرد|شحنه|توصيل|جمرك|رسوم الجمارك)")),
-    Cue("impersonation", "Claims to be a bank, telecom or official body",
-        "Scammers pose as banks, OMT/Whish, touch/alfa, or the government. Contact them on their official number.",
-        1,
-        (r"\b(omt|whish|blom|bank audi|byblos|fransabank|bankmed|touch lebanon|alfa telecom|mtc touch|ogero|libanpost|"
-         r"customer (service|support)|security (team|department)|whatsapp support)\b",
-         r"(البنك|مصرف|خدمه العملاء|اداره الامن|واتساب الرسمي|وزاره)")),
-)
+_DATA = json.loads((Path(__file__).resolve().parent.parent / "data" / "cues.json").read_text(encoding="utf-8"))
+CUES: tuple[Cue, ...] = tuple(Cue(c["id"], c["title"], c["why"], c["weight"], tuple(c["patterns"])) for c in _DATA["cues"])
 
 # Patterns go through the same Arabic normalization as the messages (على -> علي, ...).
 _COMPILED = [(c, [re.compile(normalize_arabic(p), re.IGNORECASE) for p in c.patterns]) for c in CUES]
-COMBO_THRESHOLD = 4  # e.g. code request + a link, or prize + big amount + "click"
+COMBO_THRESHOLD = _DATA["combo_threshold"]  # e.g. code request + a link, or prize + big amount + "click"
 
 
 def _signal(id_: str, title: str, detail: str, severity: Severity) -> Signal:

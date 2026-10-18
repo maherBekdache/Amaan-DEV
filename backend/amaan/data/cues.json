@@ -1,0 +1,91 @@
+{
+  "_note": "Scam-script cues shared by the backend (amaan/scoring/text_cues.py) and the apps (packages/core/src/cues.ts). Edit here, then copy to packages/core/src/data/cues.json (a test checks both copies are identical). Patterns are regexes; Arabic is normalized (أإآ->ا, ئؤ->ء, ة->ه, ى->ي) on both the pattern and the message.",
+  "combo_threshold": 4,
+  "cues": [
+    {
+      "id": "asks_for_code",
+      "title": "Asks you to share a code",
+      "why": "Banks, OMT, Whish and WhatsApp never ask you to send a verification code. Sharing it gives away your account.",
+      "weight": 3,
+      "patterns": [
+        "\\b(otp|verification code|security code|pin code|6[- ]?digit code|whatsapp code)\\b",
+        "\\b(send|forward|give|share|tell)( me)? (the |your |that |this )?(code|otp|pin)\\b",
+        "(رمز|كود) (التحقق|التاكيد|الامان|التفعيل)",
+        "(ابعت|ابعتلي|بعتلي|ارسل|ارسلي|ابعث|اعطيني|عطيني)\\s*(لي\\s*)?(ال)?(كود|رمز|الرمز)"
+      ]
+    },
+    {
+      "id": "prize",
+      "title": "Prize, gift or lottery",
+      "why": "Unexpected prizes that need a fee, a code or your details are a classic scam.",
+      "weight": 2,
+      "patterns": [
+        "\\b(you('ve| have)? won|winner|claim your (prize|reward|gift)|free (gift|iphone)|lottery|prize)\\b",
+        "(ربحت|ربحتي|فزت|جايزه|جاءزه|هديه مجانيه|سحب على)"
+      ]
+    },
+    {
+      "id": "money_request",
+      "title": "Asks for money or a transfer",
+      "why": "Requests to transfer money, pay a 'fee' or top up a number are the end goal of most scams.",
+      "weight": 2,
+      "patterns": [
+        "\\b(transfer|send money|wire|top[- ]?up|recharge|usdt|bitcoin|crypto)\\b",
+        "\\bpay\\b[^.!?\\n]{0,30}\\b(fee|fees|charge|amount)\\b",
+        "(حول|حولي|حوللي|تحويل|ابعتلي مصاري|رسوم|اشحن|تشريج|ادفع)"
+      ]
+    },
+    {
+      "id": "urgency_threat",
+      "title": "Pressure or threat",
+      "why": "Scams create urgency (account blocked, last chance) so you act before thinking.",
+      "weight": 2,
+      "patterns": [
+        "\\b(urgent|immediately|within 24 hours|account (will be )?(suspended|blocked|closed|locked)|last (chance|warning))\\b",
+        "(عاجل|فورا|خلال 24 ساعه|سيتم (ايقاف|اغلاق|حظر|تعليق)|حسابك (موقوف|مقفل|محظور))"
+      ]
+    },
+    {
+      "id": "big_amount",
+      "title": "Promises or mentions a large amount of money",
+      "why": "Big sums of money out of nowhere are bait.",
+      "weight": 1,
+      "patterns": [
+        "(\\$\\s?\\d[\\d,.]*|\\d[\\d,.]*\\s?(\\$|usd|dollars?|euros?|€))",
+        "\\b(million|millions|1m)\\b",
+        "(مليون|الف دولار|\\d+\\s*دولار)"
+      ]
+    },
+    {
+      "id": "click_link",
+      "title": "Pushes you to click a link",
+      "why": "Messages that rush you to a link usually lead to a fake login or payment page.",
+      "weight": 1,
+      "patterns": [
+        "\\b(click|tap|press|open)( on)? (here|the link|this link|below|now)\\b",
+        "(اضغط|انقر|اكبس|كبوس|ادخل)\\s*(على|ع)?\\s*(ال)?(رابط|لينك|ينك)",
+        "(اضغط|انقر|اكبس) (هنا|هون)"
+      ]
+    },
+    {
+      "id": "delivery_lure",
+      "title": "Parcel or delivery pretext",
+      "why": "Fake 'your parcel is waiting' messages lead to payment or login pages.",
+      "weight": 1,
+      "patterns": [
+        "\\b(parcel|package|shipment|delivery|customs fee|track(ing)? your)\\b",
+        "(طرد|شحنه|توصيل|جمرك|رسوم الجمارك)"
+      ]
+    },
+    {
+      "id": "impersonation",
+      "title": "Claims to be a bank, telecom or official body",
+      "why": "Scammers pose as banks, OMT/Whish, touch/alfa, or the government. Contact them on their official number.",
+      "weight": 1,
+      "patterns": [
+        "\\b(omt|whish|blom|bank audi|byblos|fransabank|bankmed|touch lebanon|alfa telecom|mtc touch|ogero|libanpost|customer (service|support)|security (team|department)|whatsapp support)\\b",
+        "(البنك|مصرف|خدمه العملاء|اداره الامن|واتساب الرسمي|وزاره)"
+      ]
+    }
+  ]
+}
