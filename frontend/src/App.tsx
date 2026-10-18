@@ -4,6 +4,7 @@ import Examples, { loadExampleImage, type Example } from "./components/Examples"
 import HistoryList from "./components/HistoryList";
 import InputCard from "./components/InputCard";
 import Verdict, { type Checked } from "./components/Verdict";
+import PhonePanel from "./components/PhonePanel";
 import WhatsAppPanel from "./components/WhatsAppPanel";
 import { analyzeImage, analyzeText, ApiError, getHealth, importChat } from "./lib/api";
 import { fromDataTransfer, type Incoming } from "./lib/dropParse";
@@ -19,7 +20,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
   const [health, setHealth] = useState<Health | null | undefined>(undefined);
-  const [tab, setTab] = useState<"check" | "whatsapp">("check");
+  const [tab, setTab] = useState<"check" | "whatsapp" | "phone">("check");
   const [importing, setImporting] = useState(false);
   const [report, setReport] = useState<ImportReport | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -144,18 +145,20 @@ export default function App() {
       </header>
 
       <nav className="flex gap-1 rounded-xl bg-slate-200/70 p-1 text-sm font-medium">
-        {(["check", "whatsapp"] as const).map((t) => (
+        {(["check", "whatsapp", "phone"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 rounded-lg px-4 py-2 ${tab === t ? "bg-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
           >
-            {t === "check" ? "🔍 Check something" : "💬 WhatsApp"}
+            {t === "check" ? "🔍 Check something" : t === "whatsapp" ? "💬 WhatsApp" : "📱 Phone app"}
           </button>
         ))}
       </nav>
 
-      {tab === "whatsapp" ? (
+      {tab === "phone" ? (
+        <PhonePanel />
+      ) : tab === "whatsapp" ? (
         <>
           {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">{error}</div>}
           <WhatsAppPanel report={report} importing={importing} onImport={runImport} />

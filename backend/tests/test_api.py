@@ -190,3 +190,32 @@ def test_allowed_hosts_from_env(monkeypatch):
     assert Settings().allowed_hosts == ["localhost", "*.app.github.dev"]
     monkeypatch.setenv("AMAAN_ALLOWED_HOSTS", "")
     assert Settings().allowed_hosts == DEFAULT_HOSTS
+
+
+def test_phone_gateway_requires_token(client, monkeypatch):
+    from amaan.config import get_settings
+
+    s = get_settings()
+    monkeypatch.setattr(s, "phone_token", "tok123")
+    monkeypatch.setattr(s, "phone_url", "http://192.168.1.20:8001")
+    urlvet_returns(client, {})
+    lan = {"host": "192.168.1.20:8001"}
+    # from the network: only the gateway, and only with the token
+    assert client.get("/health", headers=lan).status_code == 400
+    assert client.post("/analyze/text", headers=lan, json={"text": "x.com"}).status_code == 400
+    assert client.post("/gateway/analyze/link", headers=lan, json={"urls": ["omt-gift.example.com"]}).status_code == 401
+    r = client.post("/gateway/analyze/link", json={"urls": ["omt-gift.example.com"]},
+                    headers={**lan, "Authorization": "Bearer tok123"})
+    assert r.status_code == 200 and r.headers["access-control-allow-origin"] == "*"
+    assert r.json()["items"][0]["host_ascii"] == "omt-gift.example.com"
+    pre = client.options("/gateway/analyze/link", headers={**lan, "Origin": "http://localhost:8081",
+                                                           "Access-Control-Request-Method": "POST"})
+    assert pre.status_code == 204
+    # the pairing secret is only shown on the laptop itself
+    assert client.get("/phone/pairing", headers=lan).status_code == 400
+    assert client.get("/phone/pairing").json()["pair_uri"] == "amaan://pair?server=http://192.168.1.20:8001&token=tok123"
+
+
+def test_gateway_off_without_token(client):
+    assert client.post("/gateway/analyze/link", json={"urls": ["x.com"]},
+                       headers={"Authorization": "Bearer "}).status_code == 401

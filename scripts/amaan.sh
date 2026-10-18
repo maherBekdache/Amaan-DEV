@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start/stop the Amaan stack from WSL, Linux or macOS.
-#   ./scripts/amaan.sh up [--urlvet-ui] [--whatsapp] [--lookyloo] | down | status | logs | setup | update-urlvet
+#   ./scripts/amaan.sh up [--urlvet-ui] [--whatsapp] [--lookyloo] [--phone] | down | status | logs | setup | update-urlvet
 #   ./scripts/amaan.sh dev [--mock]   hot-reload backend :8000 + frontend :5173
 #                                     (--mock = FAKE URL.vet, development only)
 #   ./scripts/amaan.sh test           backend tests + frontend type check
@@ -103,7 +103,19 @@ case "$CMD" in
     [[ "$ARGS" == *" --lookyloo "* ]] && start_lookyloo
     profile=()
     [[ "$ARGS" == *" --whatsapp "* ]] && profile=(--profile whatsapp)
-    (cd "$ROOT" && docker compose "${profile[@]}" up -d --build)
+    files=(-f docker-compose.yml)
+    if [[ "$ARGS" == *" --phone "* ]]; then
+      ip="$( (hostname -I 2>/dev/null || ipconfig getifaddr en0 2>/dev/null) | awk '{print $1}')"
+      [ -n "$ip" ] || { echo "No network address found." >&2; exit 1; }
+      touch "$ROOT/.env"
+      grep -v '^AMAAN_PHONE_URL=' "$ROOT/.env" > "$ROOT/.env.tmp" || true
+      mv "$ROOT/.env.tmp" "$ROOT/.env"
+      echo "AMAAN_PHONE_URL=http://$ip:8001" >> "$ROOT/.env"
+      grep -qs '^AMAAN_PHONE_TOKEN=.' "$ROOT/.env" || echo "AMAAN_PHONE_TOKEN=$(secret)" >> "$ROOT/.env"
+      files+=(-f docker-compose.phone.yml)
+      echo "==> Phone gateway on http://$ip:8001"
+    fi
+    (cd "$ROOT" && docker compose "${files[@]}" "${profile[@]}" up -d --build)
     for _ in $(seq 1 45); do
       if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
         echo; echo "Amaan is running:  http://localhost:8000"

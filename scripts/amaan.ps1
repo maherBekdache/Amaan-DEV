@@ -7,6 +7,7 @@
   .\scripts\amaan.ps1 up -UrlvetUi  # also start URL.vet's own web UI on :3000
   .\scripts\amaan.ps1 up -WhatsApp  # also start the optional WhatsApp bridge
   .\scripts\amaan.ps1 up -Lookyloo  # also start Lookyloo (opens links in a sandbox for the AI opinion)
+  .\scripts\amaan.ps1 up -Phone     # let the phone app (same Wi-Fi) use this computer's link checker
   .\scripts\amaan.ps1 status
   .\scripts\amaan.ps1 down
   .\scripts\amaan.ps1 update-urlvet # move URL.vet to the pinned ref again
@@ -21,6 +22,7 @@ param(
   [switch]$UrlvetUi,
   [switch]$WhatsApp,
   [switch]$Lookyloo,
+  [switch]$Phone,
   [switch]$Mock
 )
 
@@ -86,6 +88,24 @@ function Start-Lookyloo {
   Copy-Item (Join-Path $Root "infra\lookyloo\modules.json") (Join-Path $LookyDir "config\modules.json") -Force
   Write-Host "==> Building and starting Lookyloo (first time: 10-20 minutes)" -ForegroundColor Cyan
   Invoke-Checked docker ((Get-LookyCompose) + @("up", "-d", "--build"))
+}
+
+function Set-EnvLine([string]$name, [string]$value) {
+  $rootEnv = Join-Path $Root ".env"
+  $lines = @()
+  if (Test-Path $rootEnv) { $lines = @(Get-Content $rootEnv | Where-Object { $_ -notmatch "^$name=" }) }
+  $lines += "$name=$value"
+  [IO.File]::WriteAllText($rootEnv, (($lines -join "`n") + "`n"), $Utf8)
+}
+
+function Enable-Phone {
+  $ip = (Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq "Up" } |
+         Select-Object -First 1).IPv4Address.IPAddress
+  if (-not $ip) { throw "No Wi-Fi/LAN connection found. Connect this computer to the same Wi-Fi as the phone." }
+  Set-EnvLine "AMAAN_PHONE_URL" "http://${ip}:8001"
+  $rootEnv = Join-Path $Root ".env"
+  if (-not (Select-String -Path $rootEnv -Pattern "^AMAAN_PHONE_TOKEN=." -Quiet)) { Set-EnvLine "AMAAN_PHONE_TOKEN" (New-Secret) }
+  Write-Host "==> Phone gateway on http://${ip}:8001 (pair from Amaan: WhatsApp tab -> Connect phone)" -ForegroundColor Cyan
 }
 
 function Invoke-Setup {
@@ -162,7 +182,9 @@ switch ($Command) {
     if ($Lookyloo) { Start-Lookyloo }
     $profileArgs = if ($WhatsApp) { @("--profile", "whatsapp") } else { @() }
     Write-Host "==> Building and starting Amaan$(if ($WhatsApp) { ' + WhatsApp bridge' })" -ForegroundColor Cyan
-    try { Invoke-Checked docker (@("compose") + $profileArgs + @("up", "-d", "--build")) } finally { Pop-Location }
+    $files = @("-f", "docker-compose.yml")
+    if ($Phone) { Enable-Phone; $files += @("-f", "docker-compose.phone.yml") }
+    try { Invoke-Checked docker (@("compose") + $files + $profileArgs + @("up", "-d", "--build")) } finally { Pop-Location }
     if (Wait-Healthy "http://localhost:8000/health" 90) {
       Write-Host "`nAmaan is running:  http://localhost:8000" -ForegroundColor Green
       Write-Host "URL.vet API:       http://localhost:8080/swagger/index.html"

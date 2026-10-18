@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -61,13 +61,43 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Amaan", version=__version__, lifespan=lifespan,
               docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["GET", "POST"],
                    allow_headers=["Content-Type"], allow_credentials=False)
 
 
+GATEWAY_PATHS = ("/gateway/health", "/gateway/analyze/link")
+
+
+def _host_allowed(host_header: str) -> bool:
+    """Host-header allowlist (blocks DNS-rebinding attacks from websites)."""
+    host = host_header.rsplit(":", 1)[0] if not host_header.startswith("[") else host_header.split("]")[0] + "]"
+    host = host.lower()
+    for allowed in settings.allowed_hosts:
+        if allowed == "*" or host == allowed or (allowed.startswith("*.") and host.endswith(allowed[1:])):
+            return True
+    return False
+
+
+def _gateway_ok(request: Request) -> bool:
+    """The phone app: allowed from the network only with the pairing token."""
+    token = settings.phone_token
+    auth = request.headers.get("authorization", "")
+    return bool(token) and request.url.path in GATEWAY_PATHS and secrets.compare_digest(auth, f"Bearer {token}")
+
+
 @app.middleware("http")
 async def guard(request: Request, call_next):
+    gateway = request.url.path in GATEWAY_PATHS
+    if gateway and request.method == "OPTIONS":  # CORS preflight from the app's web build
+        return Response(status_code=204, headers={
+            "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Max-Age": "600"})
+    if gateway:
+        if not _gateway_ok(request):
+            return JSONResponse({"detail": "Pair this app with Amaan first (missing or wrong token)."}, status_code=401,
+                                headers={"Access-Control-Allow-Origin": "*"})
+    elif not _host_allowed(request.headers.get("host", "")):
+        return JSONResponse({"detail": "Invalid host header"}, status_code=400)
     # Reject oversized bodies before they are read or spooled to disk.
     limit = settings.max_import_bytes if request.url.path == "/import/chat" else settings.max_upload_bytes
     length = request.headers.get("content-length")
@@ -78,7 +108,9 @@ async def guard(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import", "/sources", "/ai")):
+    if gateway:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import", "/sources", "/ai", "/gateway", "/phone")):
         response.headers["Cache-Control"] = "no-store"
     else:
         response.headers["Content-Security-Policy"] = CSP
@@ -109,6 +141,34 @@ async def analyze_link(req: LinkRequest, request: Request) -> Evidence:
     if not any(u.strip() for u in req.urls):
         raise HTTPException(400, "Send at least one link.")
     return await request.app.state.analyzer.analyze_links(req.urls)
+
+
+# --- phone app (hybrid mode) ---------------------------------------------------
+# The phone analyzes messages and QR codes itself and sends only links here.
+# Reachable from the local network only when the phone gateway is enabled
+# (start-everything.bat / -Phone) and only with the pairing token.
+
+
+@app.get("/gateway/health")
+async def gateway_health(request: Request) -> dict:
+    uv = await request.app.state.urlvet.health()
+    return {"status": "ok", "version": __version__, "link_sandbox": bool(uv.get("reachable"))}
+
+
+@app.post("/gateway/analyze/link", response_model=Evidence)
+async def gateway_analyze_link(req: LinkRequest, request: Request) -> Evidence:
+    if not any(u.strip() for u in req.urls):
+        raise HTTPException(400, "Send at least one link.")
+    return await request.app.state.analyzer.analyze_links(req.urls)
+
+
+@app.get("/phone/pairing")
+async def phone_pairing() -> dict:
+    """For the laptop screen only (host check): what the 'Connect phone' QR contains."""
+    if not (settings.phone_token and settings.phone_url):
+        return {"enabled": False, "message": "Start Amaan with start-everything.bat (or 'up -Phone') to connect a phone."}
+    return {"enabled": True, "server": settings.phone_url, "token": settings.phone_token,
+            "pair_uri": f"amaan://pair?server={settings.phone_url}&token={settings.phone_token}"}
 
 
 @app.post("/ai/explain", response_model=AIOpinion)

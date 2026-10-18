@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     lookyloo_url: str | None = None
     lookyloo_timeout_s: float = 60.0
 
+    # Phone app gateway (hybrid mode): LAN address shown in the pairing QR, and
+    # the secret the app must send. Both set by the scripts; off when empty.
+    phone_url: str | None = None
+    phone_token: str | None = None
+
     # Folder with the built frontend; served at / when it exists.
     frontend_dist: str | None = None
 
