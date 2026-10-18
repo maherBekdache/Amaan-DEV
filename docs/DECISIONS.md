@@ -102,8 +102,12 @@ text never appear in logs.
 - Chat-export import (`/import/chat`): processed in memory, nothing kept.
 - Live mode: separate `whatsapp-bridge` service (Baileys), started only with
   `start-whatsapp.bat` / the `whatsapp` Compose profile, not published on any host port.
-- Only chats the user ticks are read; only new incoming messages; never sends,
-  never marks as read, never appears online.
+- Default watch mode "unknown numbers": 1:1 chats with numbers not saved in the
+  phone's contacts (and unknown callers) are watched automatically; saved
+  contacts and groups are not, unless the user ticks them. Mode "only chats I
+  pick" is available. Only watched chats are read; only new incoming messages
+  and incoming-call notices; never sends, never answers or rejects calls, never
+  marks as read, never appears online.
 - On disk: the WhatsApp login session, the selected chat ids and the chat list
   (ids + names only, so the picker survives restarts) in the Docker volume
   `wa_session`. "Unlink WhatsApp" deletes all of it and removes the linked device.

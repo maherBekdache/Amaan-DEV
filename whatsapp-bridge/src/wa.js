@@ -40,7 +40,7 @@ export class WhatsApp {
 
   status() {
     return { state: this.state, qr: this.qr, me: this.me, error: this.error, checked: this.checked,
-             selected: this.chats.selection.size };
+             selected: this.chats.watchedCount(), mode: this.chats.mode };
   }
 
   hasSession() {
@@ -99,6 +99,23 @@ export class WhatsApp {
     sock.ev.on("contacts.upsert", (list) => list.forEach((c) => this.chats.upsertContact(c)));
     sock.ev.on("contacts.update", (list) => list.forEach((c) => this.chats.upsertContact(c)));
     sock.ev.on("groups.upsert", (list) => list.forEach((g) => this.chats.upsert(g.id, g.subject, true)));
+
+    // Calls: remember who called; an unknown caller is watched and reported.
+    // We never answer or reject the call.
+    sock.ev.on("call", (calls) => {
+      for (const c of calls ?? []) {
+        if (c.status !== "offer" || c.isGroup) continue;
+        if (c.callerPn) this.chats.link(c.callerPn, c.from);
+        const id = this.chats.canonical(c.callerPn ?? c.from);
+        this.chats.recordCall(id);
+        if (this.chats.isWatchedId(id)) {
+          this.checked += 1;
+          this.forward({ chatId: id, chatName: this.chats.nameOf([id]), sender: "", kind: c.isVideo ? "video_call" : "call",
+                         timestamp: (c.date ? new Date(c.date).getTime() : Date.now()) / 1000, text: "" }, null)
+            .catch((e) => log.warn({ err: e.message }, "call report failed"));
+        }
+      }
+    });
 
     sock.ev.on("messages.upsert", ({ messages, type }) => {
       for (const msg of messages) {

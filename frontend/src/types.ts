@@ -100,6 +100,7 @@ export interface WaStatus {
   me?: { id: string | null; name: string | null } | null;
   error?: string | null;
   selected?: number;
+  mode?: "unknown" | "manual";
   checked_total?: number;
 }
 
@@ -107,7 +108,16 @@ export interface WaChat {
   id: string;
   name: string;
   isGroup: boolean;
-  selected: boolean;
+  saved: boolean; // in the phone's contacts
+  calledRecently: boolean;
+  auto: boolean; // watched automatically because it's an unknown number
+  selected: boolean; // watched right now
+}
+
+export interface WaPolicy {
+  mode: "unknown" | "manual";
+  include: string[];
+  exclude: string[];
 }
 
 export interface WaAlert {

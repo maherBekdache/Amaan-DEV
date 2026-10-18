@@ -1,4 +1,4 @@
-import type { Evidence, Health, ImportReport, WaAlert, WaChat, WaStatus } from "../types";
+import type { Evidence, Health, ImportReport, WaAlert, WaChat, WaPolicy, WaStatus } from "../types";
 
 // Same-origin by default. An Electron build can point this at the local backend.
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
@@ -65,12 +65,12 @@ export const wa = {
   status: () => call<WaStatus>("/whatsapp/status"),
   link: () => call<WaStatus>("/whatsapp/link", { method: "POST" }),
   logout: () => call<WaStatus>("/whatsapp/logout", { method: "POST" }),
-  chats: () => call<{ chats: WaChat[] }>("/whatsapp/chats"),
-  select: (chat_ids: string[]) =>
-    call<{ selected: number }>("/whatsapp/selection", {
+  chats: () => call<{ chats: WaChat[] } & WaPolicy>("/whatsapp/chats"),
+  setPolicy: (policy: WaPolicy) =>
+    call<{ selected: number } & WaPolicy>("/whatsapp/selection", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_ids }),
+      body: JSON.stringify(policy),
     }),
   addNumber: (number: string) =>
     call<{ id: string; selected: number }>("/whatsapp/chats", {

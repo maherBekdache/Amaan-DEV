@@ -46,7 +46,7 @@ test("chat selection is saved and survives a restart", () => {
   c.upsert("status@broadcast", "Status"); // ignored
   c.select(["g1@g.us", "status@broadcast"]);
   assert.deepEqual(c.list().map((x) => [x.name, x.selected]), [["Family", true], ["Mom", false]]);
-  assert.deepEqual([...new Chats(dir).selection], ["g1@g.us"]);
+  assert.deepEqual([...new Chats(dir).include], ["g1@g.us"]);
   assert.equal(c.nameOf(["555@s.whatsapp.net"]), "+555");
 });
 
@@ -108,4 +108,38 @@ test("unsaved privacy-id contacts are not shown as phone numbers", () => {
   const c = new Chats(tmp());
   c.upsert("123456789@lid", null);
   assert.equal(c.list()[0].name, "Unsaved contact");
+});
+
+
+test("default mode watches unknown numbers, not saved contacts or groups", () => {
+  const c = new Chats(tmp());
+  c.upsertContact({ id: "111@s.whatsapp.net", name: "Mom" }); // saved in the phone
+  c.upsertContact({ id: "222@s.whatsapp.net", notify: "Win Prizes" }); // only their own name: unsaved
+  c.upsert("g1@g.us", "Family", true);
+  const w = Object.fromEntries(c.list().map((x) => [x.name, x.selected]));
+  assert.deepEqual(w, { "Win Prizes": true, Mom: false, Family: false });
+  assert.equal(c.isSelected(["999@s.whatsapp.net"]), true); // a brand-new number is watched right away
+});
+
+test("user can untick an unknown chat and tick a saved one", () => {
+  const dir = tmp();
+  const c = new Chats(dir);
+  c.upsertContact({ id: "111@s.whatsapp.net", name: "Mom" });
+  c.upsertContact({ id: "222@s.whatsapp.net", notify: "Plumber" });
+  c.setPolicy({ mode: "unknown", include: ["111@s.whatsapp.net"], exclude: ["222@s.whatsapp.net"] });
+  const again = new Chats(dir);
+  assert.equal(again.isWatchedId("111@s.whatsapp.net"), true);
+  assert.equal(again.isWatchedId("222@s.whatsapp.net"), false);
+  again.setPolicy({ mode: "manual", include: [], exclude: [] });
+  assert.equal(again.isWatchedId("999@s.whatsapp.net"), false); // manual mode: nothing automatic
+});
+
+test("callers are remembered and shown first", () => {
+  const c = new Chats(tmp());
+  c.upsertContact({ id: "333@s.whatsapp.net", notify: "Aaron" });
+  c.recordCall("444@s.whatsapp.net");
+  const first = c.list()[0];
+  assert.equal(first.id, "444@s.whatsapp.net");
+  assert.equal(first.calledRecently, true);
+  assert.equal(first.selected, true);
 });

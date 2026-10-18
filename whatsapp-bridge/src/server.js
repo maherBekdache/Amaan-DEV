@@ -12,12 +12,15 @@ export function makeServer(wa, chats) {
       await wa.logout();
       return wa.status();
     },
-    "GET /chats": () => ({ chats: chats.list() }),
-    "POST /chats": (body) => ({ id: chats.addNumber(body?.number), selected: chats.selection.size }),
+    "GET /chats": () => ({ chats: chats.list(), ...chats.policy() }),
+    "POST /chats": (body) => ({ id: chats.addNumber(body?.number), selected: chats.watchedCount() }),
     "PUT /selection": (body) => {
-      if (!Array.isArray(body?.chat_ids)) throw Object.assign(new Error("chat_ids must be a list"), { status: 400 });
-      chats.select(body.chat_ids);
-      return { selected: chats.selection.size };
+      if (Array.isArray(body?.chat_ids)) chats.select(body.chat_ids); // older clients
+      else if (body && (body.mode === "unknown" || body.mode === "manual")) {
+        if (![body.include ?? [], body.exclude ?? []].every(Array.isArray)) throw Object.assign(new Error("include/exclude must be lists"), { status: 400 });
+        chats.setPolicy(body);
+      } else throw Object.assign(new Error("send {mode, include, exclude}"), { status: 400 });
+      return { selected: chats.watchedCount(), ...chats.policy() };
     },
   };
 

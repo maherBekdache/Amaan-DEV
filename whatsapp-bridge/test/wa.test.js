@@ -91,3 +91,17 @@ test("start over (logout) works while stuck connecting", async () => {
   assert.equal(wa.state, "idle"); // the scheduled retry was cancelled
   assert.equal(sockets.length, before);
 });
+
+
+test("an incoming call from an unknown number is reported, never answered", async () => {
+  const reports = [];
+  const { wa, sockets } = setup();
+  wa.forward = async (meta) => reports.push(meta);
+  await wa.connect();
+  sockets[0].ev.emit("call", [{ from: "777@lid", callerPn: "447700900123@s.whatsapp.net", status: "offer", id: "c1", date: new Date() }]);
+  sockets[0].ev.emit("call", [{ from: "777@lid", status: "ringing", id: "c1", date: new Date() }]); // same call, ignored
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].kind, "call");
+  assert.equal(reports[0].chatId, "447700900123@s.whatsapp.net");
+});

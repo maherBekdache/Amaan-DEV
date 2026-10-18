@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, wa } from "../lib/api";
-import type { ImportReport, WaAlert, WaChat, WaStatus } from "../types";
+import type { ImportReport, WaAlert, WaChat, WaPolicy, WaStatus } from "../types";
 import { RiskBadge } from "./ItemDetails";
 import Verdict from "./Verdict";
 
@@ -191,7 +191,8 @@ function Connected({ status, onLogout, busy }: { status: WaStatus; onLogout: () 
       <div className="flex flex-wrap items-center gap-3">
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
         <span className="text-sm">
-          Linked{status.me?.name ? ` as ${status.me.name}` : ""} · watching {status.selected ?? 0} chat(s) ·{" "}
+          Linked{status.me?.name ? ` as ${status.me.name}` : ""} ·{" "}
+          {status.mode === "manual" ? `watching ${status.selected ?? 0} chosen chat(s)` : "watching unknown numbers"} ·{" "}
           {status.checked_total ?? 0} message(s) checked
         </span>
         <button disabled={busy} onClick={onLogout} className="ml-auto text-sm text-slate-500 hover:text-red-700">
@@ -206,105 +207,136 @@ function Connected({ status, onLogout, busy }: { status: WaStatus; onLogout: () 
 
 function ChatPicker() {
   const [chats, setChats] = useState<WaChat[]>([]);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [query, setQuery] = useState("");
+  const [policy, setPolicy] = useState<WaPolicy>({ mode: "unknown", include: [], exclude: [] });
+  const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [query, setQuery] = useState("");
   const [number, setNumber] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
-  const loadedOnce = useRef(false);
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
 
+  const load = useCallback(async () => {
+    const res = await wa.chats();
+    setChats(res.chats);
+    if (!dirtyRef.current) setPolicy({ mode: res.mode, include: res.include, exclude: res.exclude });
+  }, []);
+  useEffect(() => {
+    load().catch(() => {});
+    const id = setInterval(() => load().catch(() => {}), 10_000); // new chats and callers appear by themselves
+    return () => clearInterval(id);
+  }, [load]);
+
+  // What the user sees while editing (before Save): same rules as the bridge.
+  const watched = (c: WaChat) =>
+    policy.exclude.includes(c.id) ? false
+      : policy.include.includes(c.id) ? true
+      : policy.mode === "unknown" && !c.saved && !c.isGroup;
+
+  const change = (p: WaPolicy) => {
+    setPolicy(p);
+    setDirty(true);
+    setSaved(false);
+  };
+  const toggle = (c: WaChat) => {
+    const inc = policy.include.filter((x) => x !== c.id);
+    const exc = policy.exclude.filter((x) => x !== c.id);
+    const auto = policy.mode === "unknown" && !c.saved && !c.isGroup;
+    if (watched(c)) change({ ...policy, include: inc, exclude: auto ? [...exc, c.id] : exc });
+    else change({ ...policy, include: auto ? inc : [...inc, c.id], exclude: exc });
+  };
+  const save = async () => {
+    await wa.setPolicy(policy);
+    setDirty(false);
+    setSaved(true);
+    await load();
+  };
   const addNumber = async () => {
     setAddError(null);
     try {
-      const { id } = await wa.addNumber(number);
-      setPicked((p) => new Set(p).add(id));
+      await wa.addNumber(number);
       setNumber("");
+      setDirty(false);
       await load();
     } catch (e) {
       setAddError(e instanceof ApiError ? e.message : "Could not add this number.");
     }
   };
 
-  const load = useCallback(async () => {
-    const { chats } = await wa.chats();
-    setChats(chats);
-    if (!loadedOnce.current) {
-      setPicked(new Set(chats.filter((c) => c.selected).map((c) => c.id)));
-      loadedOnce.current = true;
-    }
-  }, []);
-  useEffect(() => {
-    load().catch(() => {});
-    const id = setInterval(() => load().catch(() => {}), 10_000); // new chats appear as messages arrive
-    return () => clearInterval(id);
-  }, [load]);
-
-  const shown = useMemo(
-    () => chats.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()) || c.id.startsWith(query.replace(/[^\d]/g, "") || "~")),
-    [chats, query],
-  );
-
-  const toggle = (id: string) => {
-    setSaved(false);
-    setPicked((p) => {
-      const n = new Set(p);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  };
+  const watchedCount = chats.filter(watched).length;
+  const shown = useMemo(() => {
+    const q = query.toLowerCase();
+    const digits = query.replace(/[^\d]/g, "");
+    return chats
+      // keep rows the user just changed visible, so an untick can be undone
+      .filter((c) => showAll || watched(c) || c.calledRecently || policy.exclude.includes(c.id) || policy.include.includes(c.id))
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || (digits && c.id.startsWith(digits)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chats, query, showAll, policy]);
 
   return (
-    <div>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h3 className="font-semibold">Chats to watch</h3>
-        <span className="text-xs text-slate-400">{chats.length} found</span>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search chats…"
-          className="ml-auto rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-        />
-        <button
-          onClick={() => wa.select([...picked]).then(() => setSaved(true))}
-          className="rounded-lg bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-600"
-        >
-          {saved ? "Saved ✓" : `Save (${picked.size})`}
+    <div className="space-y-3">
+      <div>
+        <h3 className="font-semibold">Which chats to watch</h3>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {([
+            ["unknown", "Unknown numbers (recommended)", "Every number that isn't saved in your contacts, and unknown callers. New ones are added automatically."],
+            ["manual", "Only chats I pick", "Nothing is watched unless you tick it below."],
+          ] as const).map(([mode, title, desc]) => (
+            <label key={mode} className={`cursor-pointer rounded-xl border p-3 text-sm ${policy.mode === mode ? "border-teal-600 bg-teal-50" : "border-slate-200"}`}>
+              <input type="radio" name="wa-mode" className="mr-2 accent-teal-700" checked={policy.mode === mode}
+                     onChange={() => change({ ...policy, mode })} />
+              <b>{title}</b>
+              <p className="mt-1 text-xs text-slate-600">{desc}</p>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-slate-600">Watching <b>{watchedCount}</b> of {chats.length} chats</span>
+        <button onClick={() => setShowAll(!showAll)} className="text-sm text-teal-700 hover:underline">
+          {showAll ? "Show only watched" : "Show all chats"}
+        </button>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…"
+               className="ml-auto w-40 rounded-lg border border-slate-300 px-3 py-1.5 text-sm" />
+        <button onClick={save} disabled={!dirty}
+                className="rounded-lg bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-600 disabled:opacity-40">
+          {saved && !dirty ? "Saved ✓" : "Save"}
         </button>
       </div>
+
       {chats.length === 0 ? (
-        <p className="text-sm text-slate-500">Loading your chats… (new chats also appear when they receive a message)</p>
+        <p className="text-sm text-slate-500">Loading your chats… (this takes up to a minute right after linking)</p>
+      ) : shown.length === 0 ? (
+        <p className="text-sm text-slate-500">No unknown numbers yet. They'll appear here as soon as one messages or calls you.</p>
       ) : (
-        <ul className="max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
+        <ul className="max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
           {shown.map((c) => (
             <li key={c.id}>
               <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-slate-50">
-                <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} className="h-4 w-4 accent-teal-700" />
+                <input type="checkbox" checked={watched(c)} onChange={() => toggle(c)} className="h-4 w-4 accent-teal-700" />
                 <span dir="auto" className="flex-1 truncate">{c.name}</span>
+                {c.calledRecently && <span className="rounded bg-amber-100 px-1.5 text-xs text-amber-900">📞 called you</span>}
+                {!c.saved && !c.isGroup && <span className="rounded bg-slate-100 px-1.5 text-xs text-slate-600">not in contacts</span>}
                 {c.isGroup && <span className="text-xs text-slate-400">group</span>}
               </label>
             </li>
           ))}
         </ul>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-slate-500">Missing someone? Add by number:</span>
-        <input
-          value={number}
-          onChange={(e) => setNumber(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && number.trim() && addNumber()}
-          placeholder="+961 70 123 456"
-          className="w-44 rounded-lg border border-slate-300 px-3 py-1"
-        />
-        <button onClick={addNumber} disabled={!number.trim()} className="rounded-lg border border-slate-300 px-3 py-1 hover:bg-slate-50 disabled:opacity-40">
-          Add &amp; watch
-        </button>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-slate-500">Watch a specific number:</span>
+        <input value={number} onChange={(e) => setNumber(e.target.value)}
+               onKeyDown={(e) => e.key === "Enter" && number.trim() && addNumber()}
+               placeholder="+961 70 123 456" className="w-44 rounded-lg border border-slate-300 px-3 py-1" />
+        <button onClick={addNumber} disabled={!number.trim()}
+                className="rounded-lg border border-slate-300 px-3 py-1 hover:bg-slate-50 disabled:opacity-40">Add</button>
         {addError && <span className="text-red-700">{addError}</span>}
       </div>
-      <p className="mt-1 text-xs text-slate-400">
-        Only the chats you tick are ever read. Contacts load right after linking and are remembered (names only) until you
-        unlink.
-      </p>
+      <p className="text-xs text-slate-400">Only watched chats are ever read. Saved contacts (family, friends) stay private unless you tick them.</p>
     </div>
   );
 }
@@ -339,7 +371,7 @@ function Alerts() {
                 <RiskBadge level={a.evidence.risk_level} />
                 <span dir="auto" className="shrink-0 text-sm font-medium">{a.chat_name}</span>
                 <span dir="auto" className="min-w-0 flex-1 truncate text-sm text-slate-600">
-                  {a.kind === "image" ? "📷 Photo with a QR code" : a.text}
+                  {a.kind === "image" ? "📷 Photo with a QR code" : a.kind.endsWith("call") ? "📞 Called you" : a.text}
                 </span>
                 <span className="shrink-0 text-xs text-slate-400">{new Date(a.received_at).toLocaleTimeString()}</span>
               </button>

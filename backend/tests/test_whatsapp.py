@@ -127,6 +127,23 @@ def test_status_when_bridge_off(client):
     assert client.get("/whatsapp/status").json() == {"enabled": False}
 
 
+def test_watch_policy_proxy(client):
+    route = client.mock.put(f"{BRIDGE}/selection").mock(return_value=httpx.Response(200, json={"selected": 4}))
+    client.put("/whatsapp/selection", json={"mode": "unknown", "include": ["1@s.whatsapp.net"], "exclude": []})
+    assert route.calls.last.request.content == b'{"mode":"unknown","include":["1@s.whatsapp.net"],"exclude":[]}'
+
+
+def test_unknown_call_alerts(client):
+    h = {"X-Bridge-Token": "secret-token"}
+    r = client.post("/whatsapp/ingest", headers=h, data={"kind": "call", "chat_id": "447700900123@s.whatsapp.net",
+                                                          "chat_name": "+447700900123"})
+    assert r.json() == {"stored": True, "risk_level": "Medium"}
+    client.post("/whatsapp/ingest", headers=h, data={"kind": "call", "chat_id": "96170123456@s.whatsapp.net"})
+    alerts = client.get("/whatsapp/alerts").json()
+    assert [a["evidence"]["risk_level"] for a in alerts] == ["Low", "Medium"]
+    assert "foreign" in alerts[1]["evidence"]["signals"][0]["title"]
+
+
 def test_status_and_selection_proxy(client):
     client.mock.get(f"{BRIDGE}/status").mock(return_value=httpx.Response(200, json={"state": "connected"}))
     sel = client.mock.put(f"{BRIDGE}/selection").mock(return_value=httpx.Response(200, json={"selected": 1}))

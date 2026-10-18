@@ -28,7 +28,8 @@ from amaan.extract.qr import ImageRejected, decode_qr_codes
 from amaan.extract.urls import extract_urls
 from amaan.importers.whatsapp_export import ChatExport, ExportRejected, load_export
 from amaan.schemas import (
-    Evidence, ImportFinding, ImportReport, InputType, RiskLevel, TextRequest, WhatsAppAlert,
+    Evidence, EvidenceLabel, ImportFinding, ImportReport, InputType, RiskLevel, Severity, Signal, TextRequest,
+    WhatsAppAlert,
 )
 from amaan.scoring import aggregate, local_rules, text_cues
 
@@ -175,7 +176,12 @@ async def whatsapp_add_chat(body: dict) -> dict:
 
 @router.put("/whatsapp/selection")
 async def whatsapp_selection(body: dict) -> dict:
-    return await _bridge("PUT", "/selection", json={"chat_ids": body.get("chat_ids", [])})
+    """{mode: "unknown"|"manual", include: [...], exclude: [...]} (or the older {chat_ids})."""
+    if "chat_ids" in body:
+        return await _bridge("PUT", "/selection", json={"chat_ids": list(body.get("chat_ids") or [])})
+    payload = {"mode": body.get("mode", "unknown"),
+               "include": list(body.get("include") or []), "exclude": list(body.get("exclude") or [])}
+    return await _bridge("PUT", "/selection", json=payload)
 
 
 @router.get("/whatsapp/alerts", response_model=list[WhatsAppAlert])
@@ -187,6 +193,27 @@ async def whatsapp_alerts() -> list[WhatsAppAlert]:
 async def whatsapp_clear_alerts() -> dict:
     _alerts.clear()
     return {"cleared": True}
+
+
+def call_evidence(chat_id: str, video: bool = False) -> Evidence:
+    """An unknown number called on WhatsApp. Foreign numbers are a classic scam opener."""
+    digits = chat_id.split("@")[0]
+    number = f"+{digits}" if digits.isdigit() else "a hidden number"
+    foreign = digits.isdigit() and not digits.startswith("961")
+    what = "video call" if video else "call"
+    sig = Signal(
+        id="unknown_caller",
+        title=f"Unknown {'foreign ' if foreign else ''}number {what}ed you on WhatsApp",
+        detail=(f"{number} is not in your contacts. "
+                + ("Scam calls often come from foreign numbers posing as banks, couriers or WhatsApp support. "
+                   if foreign else "")
+                + "Never share codes or send money to someone you don't know; hang up and call the official number."),
+        severity=Severity.medium if foreign else Severity.low,
+        label=EvidenceLabel.automated_indicator, source="amaan",
+    )
+    level = RiskLevel.medium if foreign else RiskLevel.low
+    return Evidence(input_type=InputType.text, analyzed_at=datetime.now(timezone.utc), items=[], signals=[sig],
+                    risk_level=level, complete=True, explanation=sig.detail, warnings=[], stats={})
 
 
 @router.post("/whatsapp/ingest")
@@ -208,6 +235,13 @@ async def whatsapp_ingest(
         raise HTTPException(403, "Invalid bridge token.")
     analyzer: Analyzer = request.app.state.analyzer
     _stats["checked"] += 1
+    if kind in ("call", "video_call"):
+        ev = call_evidence(chat_id, video=kind == "video_call")
+        _alerts.append(WhatsAppAlert(
+            id=next(_alert_ids), received_at=datetime.fromtimestamp(timestamp, timezone.utc) if timestamp
+            else datetime.now(timezone.utc), chat_name=chat_name or chat_id, sender=sender, kind=kind, text="", evidence=ev))
+        return {"stored": True, "risk_level": ev.risk_level.value}
+
     evidences: list[Evidence] = []
     try:
         if file is not None:
