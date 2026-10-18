@@ -1,0 +1,146 @@
+{
+  "AssemblyLine": {
+    "apikey": null,
+    "username": null,
+    "url": "https://malware.cyber.gc.ca",
+    "submission_profile": "static_with_internet",
+    "classification": "TLP:C",
+    "notification_queue": "lookyloo",
+    "services": {
+      "excluded": [
+        "CyberDeck",
+        "Dynamic Analysis"
+      ]
+    },
+    "priority": 1,
+    "autosubmit": false,
+    "allow_auto_trigger": false,
+    "admin_only": true
+  },
+  "VirusTotal": {
+    "apikey": null,
+    "trustenv": false,
+    "autosubmit": false,
+    "allow_auto_trigger": false,
+    "admin_only": true
+  },
+  "PhishingInitiative": {
+    "apikey": null,
+    "autosubmit": false,
+    "allow_auto_trigger": false,
+    "admin_only": true
+  },
+  "FOX": {
+    "apikey": null,
+    "autosubmit": false,
+    "allow_auto_trigger": false,
+    "admin_only": true
+  },
+  "Pandora": {
+    "url": "http://127.0.0.1:6100",
+    "autosubmit": false,
+    "allow_auto_trigger": false,
+    "admin_only": false
+  },
+  "Ollama": {
+    "url": null,
+    "model": ""
+  },
+  "OnionLookup": {
+    "enabled": false
+  },
+  "AIL": {
+    "enabled": false,
+    "url": "http://MyAIL:7000",
+    "apikey": null,
+    "timeout": 10,
+    "autosubmit": false,
+    "allow_auto_trigger": false,
+    "admin_only": true,
+    "verify_tls_cert": true
+  },
+  "SaneJS": {
+    "enabled": false,
+    "allow_auto_trigger": false,
+    "admin_only": false
+  },
+  "MultipleMISPs": {
+    "default": "MISP",
+    "instances": {
+      "MISP": {
+        "apikey": null,
+        "url": "https://misp.url",
+        "verify_tls_cert": true,
+        "timeout": 10,
+        "enable_lookup": false,
+        "enable_push": false,
+        "default_tags": [
+          "source:lookyloo"
+        ],
+        "auto_publish": false,
+        "auto_push": false,
+        "auto_push_categories": null,
+        "allow_auto_trigger": false,
+        "admin_only": true
+      }
+    }
+  },
+  "UniversalWhois": {
+    "enabled": false,
+    "ipaddress": "127.0.0.1",
+    "port": 4243,
+    "allow_auto_trigger": false,
+    "admin_only": false
+  },
+  "IPASNHistory": {
+    "enabled": false,
+    "url": "https://ipasnhistory.circl.lu/"
+  },
+  "UrlScan": {
+    "apikey": null,
+    "autosubmit": false,
+    "allow_auto_trigger": false,
+    "force_visibility": false,
+    "admin_only": true
+  },
+  "Phishtank": {
+    "enabled": false,
+    "url": "https://phishtankapi.circl.lu/",
+    "allow_auto_trigger": false,
+    "admin_only": false
+  },
+  "URLhaus": {
+    "enabled": false,
+    "url": "https://urlhaus-api.abuse.ch/v1/",
+    "allow_auto_trigger": false,
+    "admin_only": false,
+    "apikey": null
+  },
+  "Hashlookup": {
+    "enabled": false,
+    "url": "https://hashlookup.circl.lu/",
+    "allow_auto_trigger": false,
+    "admin_only": false
+  },
+  "CIRCLPDNS": {
+    "user": null,
+    "password": null,
+    "allow_auto_trigger": false,
+    "admin_only": false
+  },
+  "Cloudflare": {
+    "enabled": false,
+    "autoupdate": true
+  },
+  "AutoCategorize": {
+    "enabled": false,
+    "categories": {
+      "invalid_init_script": {
+        "enabled": false,
+        "tags": [
+          "tooling:lookyloo=\"http-spam\""
+        ]
+      }
+    }
+  }
+}

@@ -39,7 +39,15 @@ your own text, drop a screenshot, or click **Scan a QR with the camera**.
   unknown callers; family and friends stay private unless you tick them. Suspicious messages and calls appear automatically.
   Details and risks: [docs/FEASIBILITY.md](docs/FEASIBILITY.md).
 
-Demo video plan: [docs/DEMO.md](docs/DEMO.md).
+**Extra checks (optional):**
+- **Security sources** (Google Safe Browsing, VirusTotal, urlscan.io, URLhaus): copy
+  `.env.example` to `.env` and paste your free keys, then restart. Without keys those rows show "Not set up".
+- **AI second opinion** (runs on your computer): install [Ollama](https://ollama.com/download), then in
+  PowerShell run `ollama pull qwen2.5:3b` once. Amaan finds it automatically.
+- **Lookyloo** (opens links in a sandbox for the AI): start with **`start-everything.bat`** instead
+  (first time 10-20 minutes).
+
+Demo video plan: [docs/DEMO.md](docs/DEMO.md) · Future directions: [docs/FUTURE.md](docs/FUTURE.md).
 
 ## Work on it
 - How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md)

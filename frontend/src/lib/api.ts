@@ -1,4 +1,4 @@
-import type { Evidence, Health, ImportReport, WaAlert, WaChat, WaPolicy, WaStatus } from "../types";
+import type { AIOpinion, Evidence, Health, ImportReport, WaAlert, WaChat, WaPolicy, WaStatus } from "../types";
 
 // Same-origin by default. An Electron build can point this at the local backend.
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
@@ -81,3 +81,11 @@ export const wa = {
   alerts: () => call<WaAlert[]>("/whatsapp/alerts"),
   clearAlerts: () => call<{ cleared: boolean }>("/whatsapp/alerts", { method: "DELETE" }),
 };
+
+export function explain(evidence: Evidence, text?: string): Promise<AIOpinion> {
+  return call<AIOpinion>("/ai/explain", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ evidence, text, open_page: true }),
+  });
+}

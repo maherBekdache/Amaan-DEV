@@ -135,6 +135,14 @@ class HealthResponse(BaseModel):
     version: str
     urlvet: dict[str, object]
     qr_decoders: dict[str, bool]
+    ai: dict[str, object] = {}
+    lookyloo: dict[str, object] = {}
+
+
+class ExplainRequest(BaseModel):
+    evidence: "Evidence"
+    text: str | None = Field(default=None, max_length=5000, description="The message, for context (optional)")
+    open_page: bool = Field(default=True, description="Let Lookyloo open the first link in its sandbox first")
 
 
 class ImportFinding(BaseModel):

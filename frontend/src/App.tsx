@@ -178,7 +178,7 @@ export default function App() {
             </div>
           )}
           {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">{error}</div>}
-          {result && !busy && <Verdict ev={result} checked={checked} />}
+          {result && !busy && <Verdict ev={result} checked={checked} aiAuto={!!health?.ai?.available} />}
         </div>
         </>
       )}

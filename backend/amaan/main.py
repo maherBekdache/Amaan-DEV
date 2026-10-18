@@ -17,10 +17,13 @@ from amaan import __version__
 from amaan.analyzer import Analyzer
 from amaan.api import whatsapp
 from amaan.clients.urlvet import UrlVetClient
+from amaan.ai.provider import OllamaProvider
+from amaan.ai.reasoner import AIOpinion, first_link, second_opinion
+from amaan.clients.lookyloo import LookylooClient
 from amaan.reputation.aggregator import Reputation
 from amaan.config import get_settings
 from amaan.extract.qr import ImageRejected, available_decoders, decode_qr_codes
-from amaan.schemas import Evidence, HealthResponse, InputType, LinkRequest, TextRequest
+from amaan.schemas import Evidence, ExplainRequest, HealthResponse, InputType, LinkRequest, TextRequest
 
 # Privacy: we log events and counts only, never message text, links or images.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -45,10 +48,15 @@ async def lifespan(app: FastAPI):
     app.state.urlvet = client
     app.state.reputation = reputation
     app.state.analyzer = Analyzer(settings, client, reputation)
+    app.state.ai = OllamaProvider(settings.ai_url, settings.ai_model) if settings.ai_enabled else None
+    app.state.lookyloo = LookylooClient(settings.lookyloo_url, settings.lookyloo_timeout_s)
     log.info("Amaan %s started; URL.vet at %s", __version__, settings.urlvet_base_url)
     yield
     await client.aclose()
     await reputation.aclose()
+    await app.state.lookyloo.aclose()
+    if app.state.ai:
+        await app.state.ai.aclose()
 
 
 app = FastAPI(title="Amaan", version=__version__, lifespan=lifespan,
@@ -70,7 +78,7 @@ async def guard(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import", "/sources")):
+    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import", "/sources", "/ai")):
         response.headers["Cache-Control"] = "no-store"
     else:
         response.headers["Content-Security-Policy"] = CSP
@@ -79,9 +87,13 @@ async def guard(request: Request, call_next):
 
 @app.get("/health", response_model=HealthResponse)
 async def health(request: Request) -> HealthResponse:
-    uv = await request.app.state.urlvet.health()
+    st = request.app.state
+    uv = await st.urlvet.health()
+    ai = {"available": await st.ai.available() if st.ai else False,
+          "model": settings.ai_model if st.ai else None, "provider": "ollama" if st.ai else None}
     return HealthResponse(status="ok", version=__version__, urlvet=uv,
-                          qr_decoders=available_decoders(settings.wechat_model_dir))
+                          qr_decoders=available_decoders(settings.wechat_model_dir), ai=ai,
+                          lookyloo={"enabled": st.lookyloo.enabled, "reachable": await st.lookyloo.reachable()})
 
 
 @app.post("/analyze/text", response_model=Evidence)
@@ -97,6 +109,19 @@ async def analyze_link(req: LinkRequest, request: Request) -> Evidence:
     if not any(u.strip() for u in req.urls):
         raise HTTPException(400, "Send at least one link.")
     return await request.app.state.analyzer.analyze_links(req.urls)
+
+
+@app.post("/ai/explain", response_model=AIOpinion)
+async def ai_explain(req: ExplainRequest, request: Request) -> AIOpinion:
+    """AI second opinion on a result. Local model; Lookyloo opens the link first if available."""
+    st = request.app.state
+    if not st.ai:
+        return AIOpinion(available=False, message="AI is turned off (AMAAN_AI_ENABLED=0).")
+    capture = None
+    link = first_link(req.evidence)
+    if req.open_page and link and st.lookyloo.enabled:
+        capture = await st.lookyloo.capture(link)
+    return await second_opinion(st.ai, req.evidence, req.text, capture)
 
 
 @app.get("/sources")

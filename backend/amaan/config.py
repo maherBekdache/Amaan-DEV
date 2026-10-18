@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     sources_timeout_s: float = 45.0
     urlscan_wait_s: float = 40.0
 
+    # AI second opinion (local model via Ollama; see docs/FUTURE.md for cloud options)
+    ai_enabled: bool = True
+    ai_url: str = "http://localhost:11434"
+    ai_model: str = "qwen2.5:3b"  # multilingual incl. Arabic; use qwen2.5:7b with a GPU
+    # Lookyloo (optional sandbox that opens the page and records everything it loads)
+    lookyloo_url: str | None = None
+    lookyloo_timeout_s: float = 60.0
+
     # Folder with the built frontend; served at / when it exists.
     frontend_dist: str | None = None
 

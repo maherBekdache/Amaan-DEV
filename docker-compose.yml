@@ -24,6 +24,12 @@ services:
       AMAAN_URLSCAN_KEY: ${AMAAN_URLSCAN_KEY:-}
       AMAAN_URLHAUS_KEY: ${AMAAN_URLHAUS_KEY:-}
       AMAAN_FEEDS_ENABLED: ${AMAAN_FEEDS_ENABLED:-1}
+      # AI second opinion: Ollama installed on this computer (see README).
+      AMAAN_AI_URL: ${AMAAN_AI_URL:-http://host.docker.internal:11434}
+      AMAAN_AI_MODEL: ${AMAAN_AI_MODEL:-qwen2.5:3b}
+      # Lookyloo (only if started with -Lookyloo / start-everything.bat)
+      AMAAN_LOOKYLOO_URL: ${AMAAN_LOOKYLOO_URL:-http://lookyloo:5100}
+    extra_hosts: ["host.docker.internal:host-gateway"]
     networks: [default, urlvet]
     read_only: true              # nothing is written inside the container
     tmpfs: [/tmp]                # large uploads may spool here; deleted after analysis

@@ -62,7 +62,7 @@ def parse_report(data: dict[str, Any]) -> UrlVetResult:
     if isinstance(short, dict) and short and short.get("resolved") is False:
         neutral.append("URL.vet could not find where this short link leads.")
 
-    if data.get("_mock"):
+    if data.get("_mock") and not any(n.startswith("MOCK") for n in neutral):
         neutral.insert(0, "MOCK URL.vet: fake result for development, not a real scan.")
 
     return UrlVetResult(

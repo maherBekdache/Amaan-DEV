@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start/stop the Amaan stack from WSL, Linux or macOS.
-#   ./scripts/amaan.sh up [--urlvet-ui|--whatsapp] | down | status | logs | setup | update-urlvet
+#   ./scripts/amaan.sh up [--urlvet-ui] [--whatsapp] [--lookyloo] | down | status | logs | setup | update-urlvet
 #   ./scripts/amaan.sh dev [--mock]   hot-reload backend :8000 + frontend :5173
 #                                     (--mock = FAKE URL.vet, development only)
 #   ./scripts/amaan.sh test           backend tests + frontend type check
@@ -13,6 +13,25 @@ URLVET_REF="${URLVET_REF:-a6b54c29b73a053b916805173fba352e9be0204c}"  # pinned; 
 NETWORK="amaan-urlvet"
 CMD="${1:-up}"
 UI="${2:-}"
+ARGS=" ${*:2} "
+LOOKY_DIR="$ROOT/third_party/lookyloo"
+LOOKY_REPO="https://github.com/Lookyloo/lookyloo.git"
+LOOKY_REF="${LOOKYLOO_REF:-a37506c4ffc063464e016ecff8cfa79f7e65461d}"
+
+looky_compose() {
+  docker compose -p lookyloo -f "$LOOKY_DIR/docker-compose.yml" -f "$ROOT/infra/lookyloo/docker-compose.amaan.yml" "$@"
+}
+
+start_lookyloo() {
+  if [ ! -d "$LOOKY_DIR" ]; then
+    echo "==> Cloning Lookyloo (BSD-3, kept unmodified in third_party/)"
+    git clone --quiet "$LOOKY_REPO" "$LOOKY_DIR"
+    git -C "$LOOKY_DIR" -c advice.detachedHead=false checkout --quiet "$LOOKY_REF"
+  fi
+  cp "$ROOT/infra/lookyloo/generic.json" "$ROOT/infra/lookyloo/modules.json" "$LOOKY_DIR/config/"
+  echo "==> Building and starting Lookyloo (first time: 10-20 minutes)"
+  looky_compose up -d --build
+}
 
 urlvet_compose() {
   docker compose -p urlvet \
@@ -77,12 +96,13 @@ case "$CMD" in
   up)
     setup
     services=(backend chrome valkey)
-    [ "$UI" = "--urlvet-ui" ] && services+=(web)
+    [[ "$ARGS" == *" --urlvet-ui "* ]] && services+=(web)
     echo "==> Building and starting URL.vet (${services[*]})"
     urlvet_compose up -d --build "${services[@]}"
     echo "==> Building and starting Amaan"
+    [[ "$ARGS" == *" --lookyloo "* ]] && start_lookyloo
     profile=()
-    [ "$UI" = "--whatsapp" ] && profile=(--profile whatsapp)
+    [[ "$ARGS" == *" --whatsapp "* ]] && profile=(--profile whatsapp)
     (cd "$ROOT" && docker compose "${profile[@]}" up -d --build)
     for _ in $(seq 1 45); do
       if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
@@ -97,6 +117,8 @@ case "$CMD" in
   down)
     (cd "$ROOT" && docker compose --profile whatsapp down)
     [ -d "$URLVET_DIR" ] && urlvet_compose down
+    [ -d "$LOOKY_DIR" ] && looky_compose down
+    true
     ;;
   status)
     (cd "$ROOT" && docker compose ps)

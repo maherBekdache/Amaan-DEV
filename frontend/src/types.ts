@@ -77,6 +77,22 @@ export interface Health {
   version: string;
   urlvet: { reachable: boolean; mock: boolean; base_url: string; latency_ms: number };
   qr_decoders: Record<string, boolean>;
+  ai?: { available: boolean; model: string | null; provider: string | null };
+  lookyloo?: { enabled: boolean; reachable: boolean };
+}
+
+export interface AIOpinion {
+  available: boolean;
+  provider: string;
+  model: string;
+  risk: "low" | "medium" | "high" | null;
+  reasoning: string;
+  red_flags: string[];
+  advice: string;
+  page_checked: boolean;
+  page_note: string;
+  elapsed_ms: number;
+  message: string;
 }
 
 export interface ImportFinding {

@@ -137,6 +137,20 @@ Reported-by-people lists are labelled *Reported by others*; engine verdicts
 *Automated check*. Hosts where anyone can publish (Google Sites, GitHub
 Pages, …) are never flagged as a whole because of one listed page.
 
+## D12. AI second opinion: local model now, cloud later
+*Approved by the team, Oct 2026.*
+
+- Local LLM via Ollama (default `qwen2.5:3b`); nothing leaves the computer.
+- Shown as an advisory "AI second opinion" next to the evidence-based verdict, never
+  replacing it. Scam text/pages are fenced as untrusted data; output is a fixed JSON
+  schema, validated and clipped.
+- Lookyloo (optional, `start-everything.bat`) opens the first link in its sandbox and
+  gives the AI the redirect chain and page text. Lookyloo runs private: captures not
+  listed, internal addresses refused, all third-party modules off, captures archived
+  after 7 days (`infra/lookyloo/`).
+- A cloud model may replace Ollama later through `ai/provider.py`; that needs a new
+  decision because content would leave the machine (see FUTURE.md §1).
+
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`.
 - [ ] Decide on Lookyloo "deep inspect" (see `LINK_TOOLS_COMPARISON.md`).

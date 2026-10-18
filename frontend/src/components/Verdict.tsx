@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Evidence, EvidenceLabel, RiskLevel, Severity, Signal } from "../types";
+import AIOpinionCard from "./AIOpinionCard";
 import { ItemCard } from "./ItemDetails";
 
 // Plain-language result: verdict, what to do, why (with evidence labels),
@@ -61,7 +62,7 @@ export interface Checked {
   imageUrl?: string; // blob: URL of the user's own image (never a remote URL)
 }
 
-export default function Verdict({ ev, checked }: { ev: Evidence; checked: Checked | null }) {
+export default function Verdict({ ev, checked, aiAuto = false }: { ev: Evidence; checked: Checked | null; aiAuto?: boolean }) {
   const [details, setDetails] = useState(false);
   const look = LOOK[ev.risk_level];
   const reasons = topReasons(ev);
@@ -118,6 +119,8 @@ export default function Verdict({ ev, checked }: { ev: Evidence; checked: Checke
       ) : (
         <p className="text-sm text-slate-500">{ev.explanation}</p>
       )}
+
+      <AIOpinionCard ev={ev} text={checked?.text} auto={aiAuto} />
 
       {ev.items.length > 0 && (
         <div>

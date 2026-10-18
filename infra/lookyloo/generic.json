@@ -1,0 +1,129 @@
+{
+  "loglevel": "INFO",
+  "only_global_lookups": true,
+  "public_instance": false,
+  "public_domain": "lookyloo.myorg.local",
+  "website_listen_ip": "0.0.0.0",
+  "website_listen_port": 5100,
+  "systemd_service_name": "lookyloo",
+  "default_public": false,
+  "index_is_capture": false,
+  "users": {},
+  "time_delta_on_index": {
+    "weeks": 1,
+    "days": 0,
+    "hours": 0
+  },
+  "ignore_sri": false,
+  "async_capture_processes": 3,
+  "use_user_agents_users": false,
+  "enable_default_blur_screenshot": false,
+  "show_project_page": true,
+  "enable_context_by_users": false,
+  "enable_categorization": false,
+  "enable_bookmark": false,
+  "enable_takedown_form": false,
+  "auto_trigger_modules": false,
+  "enable_mail_notification": false,
+  "remote_lacus": {
+    "enable": false,
+    "url": ""
+  },
+  "multiple_remote_lacus": {
+    "enable": false,
+    "default": "Local",
+    "remote_lacus": [
+      {
+        "name": "Lacus local 1",
+        "url": "http://127.0.0.1:7100",
+        "group": "Local"
+      },
+      {
+        "name": "Lacus local 2",
+        "url": "http://127.0.0.1:7100",
+        "group": "Local"
+      },
+      {
+        "name": "Other Lacus",
+        "url": "http://127.0.0.1:17100"
+      }
+    ]
+  },
+  "monitoring": {
+    "enable": false,
+    "url": "http://127.0.0.1:5200"
+  },
+  "tor_proxy": {
+    "server": "socks5://127.0.0.1:9050"
+  },
+  "i2p_proxy": {
+    "server": "http://127.0.0.1:4444"
+  },
+  "trusted_timestamp_settings": {
+    "url": "https://zeitstempel.dfn.de/",
+    "hashname": "sha512",
+    "enable_default": false
+  },
+  "force_trusted_timestamp": false,
+  "global_proxy": {
+    "enable": false,
+    "server": "",
+    "username": "",
+    "password": ""
+  },
+  "email": {
+    "from": "Lookyloo <lookyloo@myorg.local>",
+    "to": "Investigation Team <investigation_unit@myorg.local>",
+    "subject": "Capture from Lookyloo to review",
+    "smtp_host": "localhost",
+    "smtp_port": "25",
+    "confirm_message": "Message the users need to confirm before they submit a notification.",
+    "defang_urls": true,
+    "auto_filter_contact": false,
+    "deduplicate": {
+      "uuid": true,
+      "hostnames": false,
+      "interval_in_sec": 86400
+    }
+  },
+  "email_smtp_auth": {
+    "auth": false,
+    "smtp_user": "johndoe@myorg.local",
+    "smtp_pass": "password",
+    "smtp_use_starttls": true,
+    "verify_certificate": true
+  },
+  "priority": {
+    "sources": {
+      "web": 10,
+      "api": 0
+    },
+    "users": {
+      "_default_auth": 5,
+      "_default_anon": 0,
+      "admin": 10
+    }
+  },
+  "hide_captures_with_error": false,
+  "archive": 7,
+  "max_capture_time": 3600,
+  "max_tree_create_time": 120,
+  "s3fs": {
+    "archive_on_s3fs": false,
+    "config": {
+      "key": "",
+      "secret": "",
+      "endpoint_url": "",
+      "bucket_name": ""
+    }
+  },
+  "private_captures": {
+    "default_private": false,
+    "default_seed_expire": "in 1 day"
+  },
+  "index_everything": false,
+  "kvrocks_index": false,
+  "allow_headed": false,
+  "default_device_name": "Desktop Chrome",
+  "default_mobile_device_name": "iPhone 16"
+}
