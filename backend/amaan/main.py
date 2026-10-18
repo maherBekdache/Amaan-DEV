@@ -17,9 +17,10 @@ from amaan import __version__
 from amaan.analyzer import Analyzer
 from amaan.api import whatsapp
 from amaan.clients.urlvet import UrlVetClient
+from amaan.reputation.aggregator import Reputation
 from amaan.config import get_settings
 from amaan.extract.qr import ImageRejected, available_decoders, decode_qr_codes
-from amaan.schemas import Evidence, HealthResponse, InputType, TextRequest
+from amaan.schemas import Evidence, HealthResponse, InputType, LinkRequest, TextRequest
 
 # Privacy: we log events and counts only, never message text, links or images.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -39,11 +40,15 @@ CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     client = UrlVetClient(settings.urlvet_base_url, settings.urlvet_timeout_s, settings.urlvet_concurrency)
+    reputation = Reputation(settings)
+    reputation.start()
     app.state.urlvet = client
-    app.state.analyzer = Analyzer(settings, client)
+    app.state.reputation = reputation
+    app.state.analyzer = Analyzer(settings, client, reputation)
     log.info("Amaan %s started; URL.vet at %s", __version__, settings.urlvet_base_url)
     yield
     await client.aclose()
+    await reputation.aclose()
 
 
 app = FastAPI(title="Amaan", version=__version__, lifespan=lifespan,
@@ -65,7 +70,7 @@ async def guard(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import")):
+    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import", "/sources")):
         response.headers["Cache-Control"] = "no-store"
     else:
         response.headers["Content-Security-Policy"] = CSP
@@ -84,6 +89,29 @@ async def analyze_text(req: TextRequest, request: Request) -> Evidence:
     if not (req.text.strip() or (req.html or "").strip() or (req.uri_list or "").strip()):
         raise HTTPException(400, "Nothing to analyze: send text, html or uri_list.")
     return await request.app.state.analyzer.analyze_text(req)
+
+
+@app.post("/analyze/link", response_model=Evidence)
+async def analyze_link(req: LinkRequest, request: Request) -> Evidence:
+    """Hybrid mode: the app analyzed the message on the device and sends only links."""
+    if not any(u.strip() for u in req.urls):
+        raise HTTPException(400, "Send at least one link.")
+    return await request.app.state.analyzer.analyze_links(req.urls)
+
+
+@app.get("/sources")
+async def sources(request: Request) -> dict:
+    """Which reputation sources are set up (no secrets)."""
+    s = settings
+    feeds = request.app.state.reputation.feeds
+    return {"sources": [
+        {"name": f.name, "kind": "blocklist", "ready": bool(f.loaded_at), "entries": len(f.urls)} for f in feeds.feeds
+    ] + [
+        {"name": "Google Safe Browsing", "kind": "blocklist", "ready": bool(s.safe_browsing_key)},
+        {"name": "VirusTotal", "kind": "engines", "ready": bool(s.virustotal_key)},
+        {"name": "urlscan.io", "kind": "sandbox", "ready": bool(s.urlscan_key)},
+        {"name": "URL.vet", "kind": "sandbox", "ready": True},
+    ]}
 
 
 @app.post("/analyze/image", response_model=Evidence)

@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("AMAAN_FEEDS_ENABLED", "0")  # no list downloads during tests
+
 import io
 
 import pytest

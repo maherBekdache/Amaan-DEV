@@ -116,6 +116,27 @@ text never appear in logs.
   into the git-ignored `.env` by the scripts) to submit messages.
 - Unofficial client: **test numbers only** (ban risk), shown in the UI.
 
+## D11. Multi-source link reputation
+*Approved by the team, Oct 2026 (all four source types).*
+
+Like VirusTotal/URLVoid: every link goes to several independent sources in
+parallel and each answer is shown ("Flagged / Nothing found / No data / Not
+set up"). Each source sees **only the link**, never the message or image.
+
+| Source | What leaves the machine | Notes |
+|---|---|---|
+| OpenPhish list | nothing (list downloaded every 6 h) | research use |
+| URLhaus list | nothing (list downloaded) | free abuse.ch Auth-Key |
+| Google Safe Browsing v5 | 4-byte hash prefixes only | free key, non-commercial |
+| VirusTotal | the link (lookup of existing reports only, never submitted) | 4/min free |
+| urlscan.io | the link, scanned remotely as **private** | small free quota |
+| URL.vet | the link (our own container) | existing |
+
+Keys live in the git-ignored `.env`. Missing keys simply skip that source.
+Reported-by-people lists are labelled *Reported by others*; engine verdicts
+*Automated check*. Hosts where anyone can publish (Google Sites, GitHub
+Pages, …) are never flagged as a whole because of one listed page.
+
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`.
 - [ ] Decide on Lookyloo "deep inspect" (see `LINK_TOOLS_COMPARISON.md`).

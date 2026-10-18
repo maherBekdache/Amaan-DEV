@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     max_import_bytes: int = 60 * 1024 * 1024
     max_urls_per_import: int = 15
 
+    # Multi-source link reputation (see docs/DECISIONS.md, D11). Every source
+    # sees only the link. Sources without a key are skipped ("not set up").
+    feeds_enabled: bool = True  # download OpenPhish (+ URLhaus with a key) and check locally
+    urlhaus_key: str | None = None
+    safe_browsing_key: str | None = None  # hash prefixes only
+    virustotal_key: str | None = None  # lookup only, never submits
+    urlscan_key: str | None = None  # private scans
+    sources_timeout_s: float = 45.0
+    urlscan_wait_s: float = 40.0
+
     # Folder with the built frontend; served at / when it exists.
     frontend_dist: str | None = None
 

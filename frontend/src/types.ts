@@ -36,6 +36,15 @@ export interface UrlVetResult {
   mock: boolean;
 }
 
+export interface SourceResult {
+  source: string;
+  kind: string;
+  status: "ok" | "not_configured" | "timeout" | "rate_limited" | "error";
+  verdict: "malicious" | "suspicious" | "clean" | "unknown";
+  detail: string;
+  community: boolean;
+}
+
 export interface AnalyzedItem {
   id: number;
   kind: ItemKind;
@@ -45,6 +54,7 @@ export interface AnalyzedItem {
   host_ascii: string | null;
   details: Record<string, string>;
   urlvet: UrlVetResult | null;
+  sources: SourceResult[];
   signals: Signal[];
   risk_level: RiskLevel;
   summary: string;

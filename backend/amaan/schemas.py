@@ -10,6 +10,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from amaan.reputation.base import SourceResult
+
 
 class RiskLevel(str, Enum):
     low = "Low"
@@ -104,6 +106,7 @@ class AnalyzedItem(BaseModel):
     host_ascii: str | None = None  # punycode (xn--) form of the host
     details: dict[str, str] = {}  # payload fields, e.g. Wi-Fi SSID, phone number
     urlvet: UrlVetResult | None = None
+    sources: list[SourceResult] = Field(default=[], description="Every reputation source's answer (multi-source check)")
     signals: list[Signal] = []
     risk_level: RiskLevel
     summary: str
@@ -167,3 +170,9 @@ class WhatsAppAlert(BaseModel):
     kind: str
     text: str
     evidence: Evidence
+
+
+class LinkRequest(BaseModel):
+    """Hybrid mode (mobile app): only links are sent, never the message or image."""
+
+    urls: list[str] = Field(max_length=10)

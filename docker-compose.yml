@@ -18,6 +18,12 @@ services:
       # WhatsApp bridge (only used when it runs); the token is generated into .env by the scripts.
       AMAAN_WHATSAPP_BRIDGE_URL: http://whatsapp-bridge:8090
       AMAAN_BRIDGE_TOKEN: ${AMAAN_BRIDGE_TOKEN:-}
+      # Multi-source link check: put your free keys in .env (see .env.example).
+      AMAAN_SAFE_BROWSING_KEY: ${AMAAN_SAFE_BROWSING_KEY:-}
+      AMAAN_VIRUSTOTAL_KEY: ${AMAAN_VIRUSTOTAL_KEY:-}
+      AMAAN_URLSCAN_KEY: ${AMAAN_URLSCAN_KEY:-}
+      AMAAN_URLHAUS_KEY: ${AMAAN_URLHAUS_KEY:-}
+      AMAAN_FEEDS_ENABLED: ${AMAAN_FEEDS_ENABLED:-1}
     networks: [default, urlvet]
     read_only: true              # nothing is written inside the container
     tmpfs: [/tmp]                # large uploads may spool here; deleted after analysis

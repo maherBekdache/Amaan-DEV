@@ -54,6 +54,36 @@ def urlvet_signals(r: UrlVetResult) -> list[Signal]:
     return out
 
 
+def source_signals(sources: list) -> list[Signal]:
+    """Turn the multi-source answers into labelled reasons."""
+    from amaan.reputation.base import SourceStatus, SourceVerdict
+
+    out: list[Signal] = []
+    checked = [r for r in sources if r.status is SourceStatus.ok]
+    for r in checked:
+        if r.verdict is SourceVerdict.malicious:
+            out.append(Signal(
+                id=f"source_{r.source.lower().replace(' ', '_').replace('.', '')}",
+                title=(f"Reported as dangerous by {r.source}" if r.community else f"{r.source} flags it as dangerous"),
+                detail=r.detail, severity=Severity.high,
+                label=EvidenceLabel.community_report if r.community else EvidenceLabel.automated_indicator,
+                source=r.source,
+            ))
+        elif r.verdict is SourceVerdict.suspicious:
+            out.append(Signal(
+                id=f"source_{r.source.lower().replace(' ', '_').replace('.', '')}", title=f"{r.source} finds it suspicious",
+                detail=r.detail, severity=Severity.medium, label=EvidenceLabel.automated_indicator, source=r.source,
+            ))
+    clean = [r.source for r in checked if r.verdict is SourceVerdict.clean]
+    if clean and not out:
+        out.append(Signal(
+            id="sources_clean", title=f"No warnings from {len(clean)} security source{'s' if len(clean) > 1 else ''}",
+            detail="Checked: " + ", ".join(clean) + ". A new scam site may not be listed yet.",
+            severity=Severity.good, label=EvidenceLabel.automated_indicator, source="amaan",
+        ))
+    return out
+
+
 def item_level(kind: ItemKind, signals: list[Signal], urlvet: UrlVetResult | None) -> RiskLevel:
     level = worst(*(_SEV[s.severity] for s in signals if s.severity in _SEV))
     if urlvet is not None and urlvet.status is UrlVetStatus.ok:

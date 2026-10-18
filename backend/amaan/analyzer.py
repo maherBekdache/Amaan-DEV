@@ -31,6 +31,7 @@ class _Pending:
     check_url: str | None = None
     signals: list[Signal] = field(default_factory=list)
     urlvet: UrlVetResult | None = None
+    sources: list = field(default_factory=list)
 
 
 def _url_pending(u: ExtractedUrl, source: ItemSource) -> _Pending:
@@ -47,6 +48,7 @@ class LinkBudget:
     limit: int
     remaining: int = -1
     cache: dict[str, UrlVetResult] = field(default_factory=dict)
+    sources: dict[str, list] = field(default_factory=dict)
     queued: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
@@ -59,9 +61,10 @@ def _key(url: str) -> str:
 
 
 class Analyzer:
-    def __init__(self, settings: Settings, urlvet: UrlVetClient) -> None:
+    def __init__(self, settings: Settings, urlvet: UrlVetClient, reputation=None) -> None:
         self.s = settings
         self.urlvet = urlvet
+        self.reputation = reputation  # amaan.reputation.aggregator.Reputation (optional)
 
     async def _check_urls(self, pending: list[_Pending], warnings: list[str],
                           budget: "LinkBudget | None" = None) -> int:
@@ -89,12 +92,24 @@ class Analyzer:
         unique: dict[str, _Pending] = {}
         for p in to_send:
             unique.setdefault(_key(p.check_url), p)
-        results = await asyncio.gather(*(self.urlvet.analyze(p.check_url) for p in unique.values()))
-        for k, r in zip(unique.keys(), results):
+        async def none() -> list:
+            return []
+
+        # URL.vet and every reputation source run at the same time.
+        results, source_lists = await asyncio.gather(
+            asyncio.gather(*(self.urlvet.analyze(p.check_url) for p in unique.values())),
+            asyncio.gather(*((self.reputation.check(p.check_url) if self.reputation else none())
+                             for p in unique.values())),
+        )
+        for k, r, srcs in zip(unique.keys(), results, source_lists):
             budget.cache[k] = r
+            budget.sources[k] = srcs
             budget.queued.discard(k)
         for p in to_send:
             p.urlvet = budget.cache[_key(p.check_url)].model_copy()
+        for p in pending:
+            if p.check_url and _key(p.check_url) in budget.sources:
+                p.sources = budget.sources[_key(p.check_url)]
         return int((time.perf_counter() - t0) * 1000)
 
     def _finish(self, input_type: InputType, pending: list[_Pending], message_signals: list[Signal],
@@ -104,10 +119,11 @@ class Analyzer:
             signals = list(p.signals)
             if p.urlvet:
                 signals = aggregate.urlvet_signals(p.urlvet) + signals
+            signals = aggregate.source_signals(p.sources) + signals
             level = aggregate.item_level(p.kind, signals, p.urlvet)
             item = AnalyzedItem(
                 id=idx, kind=p.kind, source=p.source, display=p.display, host=p.host, host_ascii=p.host_ascii,
-                details=p.details, urlvet=p.urlvet, signals=signals, risk_level=level, summary="",
+                details=p.details, urlvet=p.urlvet, sources=p.sources, signals=signals, risk_level=level, summary="",
             )
             item.summary = aggregate.item_summary(item)
             items.append(item)
@@ -139,6 +155,12 @@ class Analyzer:
             warnings=warnings,
             stats=stats,
         )
+
+    # --- links only (hybrid mobile mode) ----------------------------------------
+
+    async def analyze_links(self, urls: list[str]) -> Evidence:
+        """The phone found these links itself; only the links are sent here."""
+        return await self.analyze_text(TextRequest(uri_list="\n".join(u.strip() for u in urls if u.strip())))
 
     # --- text ------------------------------------------------------------------
 

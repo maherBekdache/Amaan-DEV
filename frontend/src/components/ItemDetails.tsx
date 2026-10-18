@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AnalyzedItem, EvidenceLabel, RiskLevel, Severity, Signal } from "../types";
+import type { AnalyzedItem, EvidenceLabel, RiskLevel, Severity, Signal, SourceResult } from "../types";
 
 // Technical details for one found item (shown under "Show technical details").
 // Security: every string from the backend is rendered as plain text by React.
@@ -51,7 +51,7 @@ function SignalRow({ s }: { s: Signal }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-medium">{s.title}</span>
           <span className={`rounded px-1.5 text-[11px] font-medium ${LABEL_STYLE[s.label]}`}>{LABEL_TEXT[s.label]}</span>
-          <span className="text-[11px] text-slate-400">via {s.source === "urlvet" ? "URL.vet" : "Amaan"}</span>
+          <span className="text-[11px] text-slate-400">via {s.source === "urlvet" ? "URL.vet" : s.source === "amaan" ? "Amaan" : s.source}</span>
         </div>
         {s.detail && <p className="text-sm text-slate-600" dir="auto">{s.detail}</p>}
       </div>
@@ -76,6 +76,49 @@ function Reasons({ title, items, tone }: { title: string; items: string[]; tone:
       <ul className="ml-4 list-disc text-sm text-slate-700">
         {items.map((r, i) => <li key={i}>{r}</li>)}
       </ul>
+    </div>
+  );
+}
+
+const VERDICT_CHIP: Record<string, [string, string]> = {
+  malicious: ["Flagged", "bg-red-100 text-red-800"],
+  suspicious: ["Suspicious", "bg-amber-100 text-amber-900"],
+  clean: ["Nothing found", "bg-emerald-100 text-emerald-800"],
+  unknown: ["No data", "bg-slate-100 text-slate-600"],
+};
+
+function chip(r: SourceResult): [string, string] {
+  if (r.status === "ok") return VERDICT_CHIP[r.verdict];
+  if (r.status === "not_configured") return ["Not set up", "bg-slate-50 text-slate-400"];
+  if (r.status === "rate_limited") return ["Limit reached", "bg-slate-100 text-slate-600"];
+  return ["Couldn't check", "bg-slate-100 text-slate-600"];
+}
+
+/** Multi-source results, VirusTotal-style: one row per source. */
+function Sources({ sources }: { sources: SourceResult[] }) {
+  if (!sources.length) return null;
+  const checked = sources.filter((r) => r.status === "ok");
+  const flagged = checked.filter((r) => r.verdict === "malicious" || r.verdict === "suspicious");
+  return (
+    <div className="rounded-lg bg-slate-50 p-3">
+      <p className="text-sm font-semibold">
+        Security sources: {flagged.length} of {checked.length} flagged it
+        <span className="ml-2 text-xs font-normal text-slate-500">(each source sees only the link)</span>
+      </p>
+      <table className="mt-2 w-full text-sm">
+        <tbody>
+          {sources.map((r) => {
+            const [text, cls] = chip(r);
+            return (
+              <tr key={r.source} className="border-t border-slate-200/70">
+                <td className="py-1 pr-3 font-medium">{r.source}</td>
+                <td className="py-1 pr-3"><span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>{text}</span></td>
+                <td className="py-1 text-xs text-slate-500">{r.detail}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -154,6 +197,8 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
               )}
             </div>
           )}
+
+          <Sources sources={item.sources ?? []} />
 
           {item.signals.length > 0 && (
             <ul className="divide-y divide-slate-100">
