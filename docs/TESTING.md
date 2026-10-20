@@ -32,7 +32,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\scripts\amaan.ps1 test
 ```
 - [ ] 1.1 Ends with **All checks passed** (backend, web app, phone rules).
-- [ ] 1.2 Phone app: `cd app; npm install; npx tsc --noEmit` shows no errors.
+- [ ] 1.2 Phone app: `cd app; npm ci; npx tsc --noEmit` shows no errors.
 
 ## 2. Web app on the computer (http://localhost:8000, **Check** tab)
 - [ ] 2.1 Status (top right) turns **Ready** within ~1 min.
@@ -72,7 +72,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 - [ ] 5.9 **Unlink** removes "Amaan" from the phone's Linked devices.
 
 ## 6. Phone app (iPhone / Android)
-Setup: on the computer, `cd app`, `npm install`, `npx expo start`. Scan the terminal QR
+Setup: on the computer, `cd app`, `npm ci`, `npx expo start`. Scan the terminal QR
 (iPhone: Camera app; Android: Expo Go). Phone and computer on the **same Wi-Fi**
 (not AUB's: use a hotspot). Then **Connect to computer** → scan the code on
 http://localhost:8000 → **📱 Phone app**.

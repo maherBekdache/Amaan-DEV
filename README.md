@@ -57,7 +57,7 @@ only links are sent to your computer's sandbox and security sources.
 2. In PowerShell:
    ```powershell
    cd Amaan-DEV\app
-   npm install
+   npm ci
    npx expo start
    ```
 3. Scan the QR code in the terminal: Android with **Expo Go**, iPhone with the **Camera** app.
