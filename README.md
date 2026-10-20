@@ -64,9 +64,14 @@ only links are sent to your computer's sandbox and security sources.
    Phone and computer must be on the **same Wi-Fi** (on AUB Wi-Fi, use your phone's hotspot instead).
 4. In the app tap **Connect to computer**, then scan the code in **http://localhost:8000 → 📱 Phone app**.
 
+**WhatsApp tab in the app:** check an exported chat on the phone, and see the live alerts of
+the computer's WhatsApp watcher. Test files: [samples/](samples/).
+
 **Web / desktop:** press `w` in the same terminal (opens the app in the browser; Chrome/Edge can
 *Install* it as a desktop app). Pair it with **Copy pairing link** on the 📱 Phone app tab.
 Without pairing, the app still works, but links are marked *not checked online*.
+
+**Testing everything step by step:** [docs/TESTING.md](docs/TESTING.md).
 
 Demo video plan: [docs/DEMO.md](docs/DEMO.md) · Future directions: [docs/FUTURE.md](docs/FUTURE.md).
 

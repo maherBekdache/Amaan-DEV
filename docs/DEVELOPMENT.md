@@ -32,6 +32,7 @@ Keep the port *Private*, use only the built-in examples (it runs on GitHub's
 servers), and stop the codespace when done.
 
 ## Manual test checklist (before a demo or a big merge)
+Full step-by-step guide for every feature: [TESTING.md](TESTING.md). Short version:
 - [ ] Each **Try an example** button gives the expected result
 - [ ] Paste text with Ctrl+V outside the text box, then drag a screenshot from File Explorer
 - [ ] Camera: show `frontend/public/examples/03-open-wifi.png` on your phone
@@ -51,6 +52,7 @@ backend/devtools/    fake URL.vet for --mock
 whatsapp-bridge/     optional Node service (Baileys) for live WhatsApp; tests: cd whatsapp-bridge; npm test
 frontend/src/        React UI (App.tsx, components/)
 app/                 phone app (Expo): App.tsx screens, src/check.ts (hybrid flow), src/server.ts (pairing)
+samples/             fake WhatsApp chat exports for testing
 packages/core/       on-device analysis shared by the apps (TypeScript port of backend/amaan, parity-tested)
 frontend/src/examples.json + public/examples/   built-in examples (regenerate: scripts/make_examples.py)
 infra/urlvet/        config for URL.vet (its code is cloned, unmodified, into third_party/)
@@ -64,7 +66,7 @@ scripts/             amaan.ps1 / amaan.sh
 | `POST /analyze/image` | multipart `file` (PNG/JPG/WebP), optional `source=camera` |
 | `GET /health` | status, URL.vet reachable, QR decoders |
 | `POST /import/chat` | multipart `file` (WhatsApp export .txt/.zip) |
-| `GET /gateway/health`, `POST /gateway/analyze/link` | phone app only: `Authorization: Bearer <pairing token>`, JSON `{urls}` |
+| `GET /gateway/health`, `POST /gateway/analyze/link`, `GET /gateway/whatsapp` | phone app only: `Authorization: Bearer <pairing token>`; link check takes JSON `{urls}` (max 10) |
 | `GET /whatsapp/status`, `POST /whatsapp/link`, `GET /whatsapp/chats`, `PUT /whatsapp/selection`, `GET /whatsapp/alerts` | live WhatsApp (bridge must run) |
 
 Every analysis returns the same Evidence object: `risk_level`, `explanation`,

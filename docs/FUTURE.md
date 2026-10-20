@@ -14,7 +14,7 @@ opinion. That keeps every verdict explainable (project rule 3).
 
 ## 1. Better AI reasoning
 1. **Bigger local model with the GPU.** `AMAAN_AI_MODEL=qwen2.5:7b` (or 14b) in `.env`.
-   Expect clearly better Arabic/Arabizi understanding. Measure it (see §6) before switching.
+   Expect clearly better Arabic/Arabizi understanding. Measure it (see §7) before switching.
 2. **Cloud LLM (e.g. Claude) for best quality.** The code already uses a provider
    interface (`backend/amaan/ai/provider.py`): add a `CloudProvider.generate_json`
    and select it with a setting. Needs a team decision (DECISIONS.md) because content
@@ -57,7 +57,17 @@ opinion. That keeps every verdict explainable (project rule 3).
   *Reported by others* label once several independent users agree.
 - Feeds back into the dataset (§2) and into the local blocklist.
 
-## 6. Measuring (needed before every change above)
+## 6. WhatsApp directly on the phone
+These need a **development build** of the app (`npx expo run:android` / `eas build`)
+instead of Expo Go; iPhone builds also need an Apple developer account.
+- **"Share to Amaan"**: long-press a message or photo in WhatsApp → Share → Amaan
+  checks it immediately (Android share intent, iOS share extension). Easiest win.
+- **Android only: watch notifications.** With the user's permission
+  (NotificationListenerService), Amaan reads incoming WhatsApp notifications from
+  unknown numbers and warns right away, with no linked device. Not possible on iPhone.
+- **Background alerts** from the computer's watcher as phone notifications.
+
+## 7. Measuring (needed before every change above)
 - A labelled evaluation set (e.g. 500 messages + 300 links + 100 QR images).
 - Report precision / recall / false-positive rate per layer and combined, and speed.
 - The CI already guards the demo examples (`backend/tests/test_examples.py`); extend

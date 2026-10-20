@@ -174,6 +174,22 @@ Pages, …) are never flagged as a whole because of one listed page.
   *not checked online* and are never shown as safe.
 - The app never opens a checked link: links are shown defanged and are not tappable.
 
+## D14. WhatsApp on the phone app
+*Oct 2026.*
+
+- **Check an exported chat** works in the phone app (Expo Go, no extra install): the
+  export is read and analyzed on the phone (`packages/core/src/chat.ts`, same parser
+  and rules as the server), photos are scanned for QR codes on the phone, and only the
+  links (at most 15, most suspicious first) go to the paired computer. The picked file
+  and the temporary photo files are deleted right after.
+- **Live watching stays on the computer** (whatsapp-bridge, D10). WhatsApp has no API
+  that lets a phone app read other apps' messages, and running Baileys on the phone
+  is not possible in Expo and would be a second linked device. The paired phone shows
+  the computer's alerts through `GET /gateway/whatsapp` (pairing token required; the
+  WhatsApp linking QR is never sent to the phone).
+- Not done yet (need a development build instead of Expo Go, see FUTURE.md §6):
+  "Share to Amaan" from WhatsApp, and Android notification reading.
+
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`.
 - [ ] Decide on Lookyloo "deep inspect" (see `LINK_TOOLS_COMPARISON.md`).

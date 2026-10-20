@@ -1,7 +1,7 @@
 // The laptop / server the phone is paired with (hybrid mode).
 // Only links go there; messages and images never leave the phone.
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { ServerEvidence } from "@amaan/core";
+import type { RiskLevel, ServerEvidence, ServerItem, Signal } from "@amaan/core";
 
 export interface Pairing { server: string; token: string }
 
@@ -64,4 +64,35 @@ export async function health(p: Pairing): Promise<{ link_sandbox: boolean }> {
 export async function checkLinks(p: Pairing, urls: string[]): Promise<ServerEvidence> {
   const res = await call(p, "/gateway/analyze/link", { method: "POST", body: JSON.stringify({ urls: urls.slice(0, 10) }) }, CHECK_TIMEOUT_MS);
   return res.json();
+}
+
+/** Check up to `budget` links, 10 per request (the server's limit). */
+export async function checkLinksBatched(p: Pairing, urls: string[]): Promise<ServerEvidence> {
+  const out: ServerEvidence = { items: [], warnings: [], complete: true };
+  for (let i = 0; i < urls.length; i += 10) {
+    const r = await checkLinks(p, urls.slice(i, i + 10));
+    out.items.push(...r.items);
+    out.warnings.push(...r.warnings.filter((w) => !out.warnings.includes(w)));
+    out.complete &&= r.complete;
+  }
+  return out;
+}
+
+// Live WhatsApp watching runs on the computer (whatsapp-bridge); the phone only shows its alerts.
+export interface WaAlert {
+  id: number;
+  received_at: string;
+  chat_name: string;
+  sender: string;
+  kind: string;
+  text: string;
+  evidence: { risk_level: RiskLevel; signals: Signal[]; items: ServerItem[] };
+}
+export interface WaLive {
+  status: { enabled: boolean; state?: string; selected?: number; mode?: string; error?: string | null; checked_total?: number };
+  alerts: WaAlert[];
+}
+
+export async function whatsappLive(p: Pairing): Promise<WaLive> {
+  return (await call(p, "/gateway/whatsapp")).json();
 }

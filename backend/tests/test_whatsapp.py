@@ -186,3 +186,16 @@ def test_add_chat_by_number_proxy(client):
     assert route.calls.last.request.content == b'{"number":"+961 70 123 456"}'
     client.mock.post(f"{BRIDGE}/chats").mock(return_value=httpx.Response(400, json={"detail": "Enter a full number"}))
     assert client.post("/whatsapp/chats", json={"number": "1"}).status_code == 400
+
+
+def test_phone_gets_alerts_with_token_only(client, monkeypatch):
+    monkeypatch.setattr(S, "phone_token", "tok123")
+    client.mock.get(f"{BRIDGE}/status").mock(return_value=httpx.Response(200, json={"state": "qr", "qr": "data:secret"}))
+    client.post("/whatsapp/ingest", headers={"X-Bridge-Token": "secret-token"},
+                data={"kind": "call", "chat_id": "447700900123@s.whatsapp.net", "chat_name": "+447700900123"})
+    lan = {"host": "192.168.1.20:8001"}
+    assert client.get("/gateway/whatsapp", headers=lan).status_code == 401
+    r = client.get("/gateway/whatsapp", headers={**lan, "Authorization": "Bearer tok123"}).json()
+    assert r["status"]["state"] == "qr" and "qr" not in r["status"]  # linking stays on the computer
+    assert r["alerts"][0]["chat_name"] == "+447700900123"
+    assert client.get("/whatsapp/alerts", headers=lan).status_code == 400  # the rest stays laptop-only

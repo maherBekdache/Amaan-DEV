@@ -1,4 +1,4 @@
-// Amaan phone app: paste a message or link, scan a QR code, or pick a screenshot.
+// Amaan phone app: paste a message or link, scan a QR code, pick a screenshot, or check WhatsApp.
 // Messages, codes and images are analyzed on the phone. Only links are sent to the
 // paired computer, which checks them in URL.vet's sandbox and against safety lists.
 import { CameraView, scanFromURLAsync, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
@@ -9,10 +9,13 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { runCheck, type Checked } from "./src/check";
+import "./src/qrDecoder";
 import { forgetPairing, health, hostOf, isLocalNetwork, loadPairing, parsePairing, savePairing, type Pairing } from "./src/server";
 import { Button, C, Card, ResultCard, s } from "./src/ui";
+import WhatsAppTab from "./src/WhatsAppTab";
 
 type Scan = null | "check" | "pair";
+type Tab = "check" | "whatsapp";
 
 export default function App() {
   return (
@@ -32,6 +35,7 @@ function Main() {
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [showConnect, setShowConnect] = useState(false);
   const [pairCode, setPairCode] = useState(""); // kept here: the scanner replaces the screen
+  const [tab, setTab] = useState<Tab>("check");
 
   useEffect(() => {
     loadPairing().then(setPairing);
@@ -95,6 +99,16 @@ function Main() {
 
           {showConnect && <Connect pairing={pairing} code={pairCode} setCode={setPairCode} onChange={(p) => { setPairing(p); if (p) setShowConnect(false); }} onScan={() => setScan("pair")} />}
 
+          <View style={{ flexDirection: "row", gap: 8 }} accessibilityRole="tablist">
+            {([["check", "🔍 Check"], ["whatsapp", "💬 WhatsApp"]] as const).map(([id, label]) => (
+              <Pressable key={id} onPress={() => setTab(id)} accessibilityRole="tab" accessibilityState={{ selected: tab === id }}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: tab === id ? C.ink : C.card, borderWidth: 1, borderColor: C.line }}>
+                <Text style={{ fontWeight: "600", color: tab === id ? "#fff" : C.ink }}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {tab === "whatsapp" ? <WhatsAppTab pairing={pairing} /> : <>
           <Card>
             <Text style={s.h2}>Is this a scam?</Text>
             <TextInput value={text} onChangeText={setText} multiline placeholder="Paste a message or a link…"
@@ -118,6 +132,7 @@ function Main() {
           )}
           {error && <Text style={s.note}>⚠️ {error}</Text>}
           {result && <ResultCard r={result} />}
+          </>}
 
           <Text style={[s.muted, { fontSize: 12, textAlign: "center" }]}>
             Messages and pictures stay on this phone. Only links are sent to your computer for checking. Nothing is saved.

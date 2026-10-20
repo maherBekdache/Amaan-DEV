@@ -9,7 +9,7 @@ export const C = {
   ink: "#0f172a", muted: "#64748b", line: "#e2e8f0", bg: "#f8fafc", card: "#ffffff", brand: "#0f172a",
 };
 
-const LOOK: Record<RiskLevel, { icon: string; bg: string; border: string; fg: string }> = {
+export const LOOK: Record<RiskLevel, { icon: string; bg: string; border: string; fg: string }> = {
   High: { icon: "⛔", bg: "#fef2f2", border: "#fca5a5", fg: "#7f1d1d" },
   Medium: { icon: "⚠️", bg: "#fffbeb", border: "#fcd34d", fg: "#78350f" },
   Low: { icon: "✅", bg: "#ecfdf5", border: "#6ee7b7", fg: "#064e3b" },
@@ -33,7 +33,7 @@ export function Button({ title, onPress, kind = "primary", disabled }: { title: 
 
 export const Card = ({ children }: { children: ReactNode }) => <View style={s.card}>{children}</View>;
 
-function Chip({ label }: { label: EvidenceLabel }) {
+export function Chip({ label }: { label: EvidenceLabel }) {
   const [text, bg, fg] = LABEL[label];
   return <Text style={[s.chip, { backgroundColor: bg, color: fg }]}>{text}</Text>;
 }

@@ -4,7 +4,8 @@
     "strict": true,
     "paths": {
       "@amaan/core": ["../packages/core/src"],
-      "tldts": ["./node_modules/tldts"]
+      "tldts": ["./node_modules/tldts"],
+      "fflate": ["./node_modules/fflate"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"]

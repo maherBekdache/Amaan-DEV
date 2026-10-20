@@ -189,6 +189,14 @@ async def whatsapp_alerts() -> list[WhatsAppAlert]:
     return list(reversed(_alerts))
 
 
+@router.get("/gateway/whatsapp")
+async def gateway_whatsapp() -> dict:
+    """Phone app (pairing token required, see main.py): live-watch state + flagged messages."""
+    status = await whatsapp_status()
+    status.pop("qr", None)  # linking is done on the computer
+    return {"status": status, "alerts": [a.model_dump(mode="json") for a in reversed(_alerts)]}
+
+
 @router.delete("/whatsapp/alerts")
 async def whatsapp_clear_alerts() -> dict:
     _alerts.clear()

@@ -8,8 +8,11 @@
     "expo": "~57.0.30",
     "expo-camera": "~57.0.6",
     "expo-clipboard": "~57.0.2",
+    "expo-document-picker": "~57.0.3",
+    "expo-file-system": "~57.0.7",
     "expo-image-picker": "~57.0.20",
     "expo-status-bar": "~57.0.1",
+    "fflate": "^0.8.3",
     "punycode": "^2.3.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -28,7 +31,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.copyFileSync(require.resolve('zxing-wasm/reader/zxing_reader.wasm'),'public/zxing_reader.wasm')\""
   },
   "private": true
 }

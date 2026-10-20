@@ -65,7 +65,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_me
                    allow_headers=["Content-Type"], allow_credentials=False)
 
 
-GATEWAY_PATHS = ("/gateway/health", "/gateway/analyze/link")
+GATEWAY_PATHS = ("/gateway/health", "/gateway/analyze/link", "/gateway/whatsapp")
 
 
 def _host_allowed(host_header: str) -> bool:
