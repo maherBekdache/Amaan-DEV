@@ -147,7 +147,8 @@ Pages, …) are never flagged as a whole because of one listed page.
 - Lookyloo (optional, `start-everything.bat`) opens the first link in its sandbox and
   gives the AI the redirect chain and page text. Lookyloo runs private: captures not
   listed, internal addresses refused, all third-party modules off, captures archived
-  after 7 days (`infra/lookyloo/`).
+  after 7 days (`infra/lookyloo/`). Its code is unmodified; we build it with
+  `infra/lookyloo/Dockerfile` (upstream's plus the Linux time-zone data it needs).
 - A cloud model may replace Ollama later through `ai/provider.py`; that needs a new
   decision because content would leave the machine (see FUTURE.md §1).
 

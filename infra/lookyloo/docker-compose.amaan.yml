@@ -1,10 +1,14 @@
 # Overlay applied on top of Lookyloo's own docker-compose.yml (code unmodified).
 #  - publish its UI/API on 127.0.0.1 only (the original binds all interfaces)
 #  - attach it to the network shared with Amaan (reachable as http://lookyloo:5100)
+#  - build with ./Dockerfile: upstream's, plus the time-zone data it needs on Linux
 # Its config (generic.json / modules.json from this folder) is copied in by the
 # scripts: captures private, internal addresses refused, all third-party modules off.
 services:
   lookyloo:
+    build:
+      context: .
+      dockerfile: ../../infra/lookyloo/Dockerfile # relative to third_party/lookyloo
     ports: !override
       - "127.0.0.1:5100:5100"
     networks: [default, amaan-urlvet]
