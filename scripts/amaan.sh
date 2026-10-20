@@ -22,12 +22,22 @@ looky_compose() {
   docker compose -p lookyloo -f "$LOOKY_DIR/docker-compose.yml" -f "$ROOT/infra/lookyloo/docker-compose.amaan.yml" "$@"
 }
 
-start_lookyloo() {
-  if [ ! -d "$LOOKY_DIR" ]; then
-    echo "==> Cloning Lookyloo (BSD-3, kept unmodified in third_party/)"
-    git clone --quiet "$LOOKY_REPO" "$LOOKY_DIR"
-    git -C "$LOOKY_DIR" -c advice.detachedHead=false checkout --quiet "$LOOKY_REF"
+# Third-party code runs in Linux containers: keep its line endings exactly as upstream.
+get_pinned() { # repo dir ref
+  if [ ! -d "$2" ]; then
+    git clone --quiet -c core.autocrlf=false "$1" "$2"
+  elif [ "$(git -C "$2" config core.autocrlf)" != "false" ]; then
+    echo "==> Fixing line endings in $2"
+    git -C "$2" config core.autocrlf false
+    git -C "$2" rm -r --cached --quiet .
+    git -C "$2" reset --hard --quiet
   fi
+  git -C "$2" -c advice.detachedHead=false checkout --quiet "$3"
+}
+
+start_lookyloo() {
+  [ -d "$LOOKY_DIR" ] || echo "==> Cloning Lookyloo (BSD-3, kept unmodified in third_party/)"
+  get_pinned "$LOOKY_REPO" "$LOOKY_DIR" "$LOOKY_REF"
   cp "$ROOT/infra/lookyloo/generic.json" "$ROOT/infra/lookyloo/modules.json" "$LOOKY_DIR/config/"
   echo "==> Building and starting Lookyloo (first time: 10-20 minutes)"
   looky_compose up -d --build
@@ -44,11 +54,8 @@ secret() { od -An -tx1 -N32 /dev/urandom | tr -d ' \n'; }
 setup() {
   command -v docker >/dev/null || { echo "Docker is not installed." >&2; exit 1; }
   docker info >/dev/null 2>&1 || { echo "Docker is not running." >&2; exit 1; }
-  if [ ! -d "$URLVET_DIR" ]; then
-    echo "==> Cloning URL.vet (AGPL-3.0, kept unmodified in third_party/)"
-    git clone --quiet "$URLVET_REPO" "$URLVET_DIR"
-    git -C "$URLVET_DIR" -c advice.detachedHead=false checkout --quiet "$URLVET_REF"
-  fi
+  [ -d "$URLVET_DIR" ] || echo "==> Cloning URL.vet (AGPL-3.0, kept unmodified in third_party/)"
+  get_pinned "$URLVET_REPO" "$URLVET_DIR" "$URLVET_REF"
   if [ ! -f "$URLVET_DIR/server/.env" ] || [ ! -f "$URLVET_DIR/docker/prod/.env" ]; then
     echo "==> Writing URL.vet configuration with fresh secrets"
     cache="$(secret)"

@@ -78,12 +78,23 @@ function Get-LookyCompose {
     "-f", (Join-Path $Root "infra\lookyloo\docker-compose.amaan.yml"))
 }
 
-function Start-Lookyloo {
-  if (-not (Test-Path $LookyDir)) {
-    Write-Host "==> Cloning Lookyloo (BSD-3, kept unmodified in third_party/)" -ForegroundColor Cyan
-    Invoke-Checked git @("clone", "--quiet", $LookyRepo, $LookyDir)
-    Invoke-Checked git @("-C", $LookyDir, "-c", "advice.detachedHead=false", "checkout", "--quiet", $LookyRef)
+# Third-party code runs in Linux containers: keep its line endings exactly as
+# upstream (Git for Windows would turn "#!/usr/bin/env python3" into "python3\r").
+function Get-Pinned([string]$repo, [string]$dir, [string]$ref) {
+  if (-not (Test-Path $dir)) {
+    Invoke-Checked git @("clone", "--quiet", "-c", "core.autocrlf=false", $repo, $dir)
+  } elseif ((& git -C $dir config core.autocrlf) -ne "false") {
+    Write-Host "==> Fixing line endings in $dir" -ForegroundColor Cyan
+    Invoke-Checked git @("-C", $dir, "config", "core.autocrlf", "false")
+    Invoke-Checked git @("-C", $dir, "rm", "-r", "--cached", "--quiet", ".")
+    Invoke-Checked git @("-C", $dir, "reset", "--hard", "--quiet")
   }
+  Invoke-Checked git @("-C", $dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", $ref)
+}
+
+function Start-Lookyloo {
+  if (-not (Test-Path $LookyDir)) { Write-Host "==> Cloning Lookyloo (BSD-3, kept unmodified in third_party/)" -ForegroundColor Cyan }
+  Get-Pinned $LookyRepo $LookyDir $LookyRef
   Copy-Item (Join-Path $Root "infra\lookyloo\generic.json") (Join-Path $LookyDir "config\generic.json") -Force
   Copy-Item (Join-Path $Root "infra\lookyloo\modules.json") (Join-Path $LookyDir "config\modules.json") -Force
   Write-Host "==> Building and starting Lookyloo (first time: 10-20 minutes)" -ForegroundColor Cyan
@@ -110,11 +121,8 @@ function Enable-Phone {
 
 function Invoke-Setup {
   Assert-Docker
-  if (-not (Test-Path $UrlvetDir)) {
-    Write-Host "==> Cloning URL.vet (AGPL-3.0, kept unmodified in third_party/)" -ForegroundColor Cyan
-    Invoke-Checked git @("clone", "--quiet", $UrlvetRepo, $UrlvetDir)
-    Invoke-Checked git @("-C", $UrlvetDir, "-c", "advice.detachedHead=false", "checkout", "--quiet", $UrlvetRef)
-  }
+  if (-not (Test-Path $UrlvetDir)) { Write-Host "==> Cloning URL.vet (AGPL-3.0, kept unmodified in third_party/)" -ForegroundColor Cyan }
+  Get-Pinned $UrlvetRepo $UrlvetDir $UrlvetRef
   $serverEnv = Join-Path $UrlvetDir "server\.env"
   $composeEnv = Join-Path $UrlvetDir "docker\prod\.env"
   if (-not (Test-Path $serverEnv) -or -not (Test-Path $composeEnv)) {
