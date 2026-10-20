@@ -86,5 +86,5 @@ and `warnings[]`. Every signal has a `label`: `automated_indicator`,
 | Port 8000 in use | `stop.bat`, close other servers |
 | Camera doesn't start | use `http://localhost:8000` and allow the camera in the address bar |
 | Phone app: "Can't reach the computer" | same Wi-Fi (not AUB's: use a hotspot), allow port 8001 in Windows firewall, started with `start-everything.bat` |
-| Expo Go: "incompatible SDK" | update Expo Go from the store (the app uses Expo SDK 58) |
+| Expo Go: "incompatible SDK" | update Expo Go from the store (the app uses Expo SDK 57, the one the App Store Expo Go runs; move to 58 once Expo Go supports it) |
 | Phone can't load the app from `expo start` | `npx expo start --tunnel` (sends only the app's code through Expo's tunnel, not your data) |

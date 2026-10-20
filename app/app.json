@@ -23,8 +23,12 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": ["android.permission.CAMERA"],
-      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -34,8 +38,22 @@
       "themeColor": "#0f172a"
     },
     "plugins": [
-      ["expo-camera", { "cameraPermission": "Amaan uses the camera to read QR codes. Nothing is recorded or uploaded.", "recordAudioAndroid": false }],
-      ["expo-image-picker", { "photosPermission": "Amaan reads QR codes from screenshots you pick. The image stays on your phone.", "cameraPermission": false, "microphonePermission": false }]
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Amaan uses the camera to read QR codes. Nothing is recorded or uploaded.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Amaan reads QR codes from screenshots you pick. The image stays on your phone.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-status-bar"
     ]
   }
 }
