@@ -9,7 +9,7 @@ const here = (p: string) => new URL(p, import.meta.url);
 const hosts = (t: string) => extractUrls(t).urls.map((u) => u.hostAscii);
 
 describe("shared data is identical to the backend's", () => {
-  for (const f of ["brands.json", "cues.json"]) {
+  for (const f of ["brands.json", "cues.json", "lookups.json"]) {
     it(f, () => {
       expect(readFileSync(here(`../src/data/${f}`), "utf8")).toBe(readFileSync(here(`../../../backend/amaan/data/${f}`), "utf8"));
     });
@@ -100,5 +100,18 @@ describe("hybrid merge", () => {
     expect(merged.items[0].checked).toBe(true);
     expect(merged.riskLevel).toBe("High");
     expect(merged.signals.map((s) => s.id)).toContain("cue_asks_for_code");
+  });
+});
+
+describe("look-it-up links (same as backend/tests/test_lookups.py)", () => {
+  it("are encoded exactly like the backend's", async () => {
+    const { lookupLinks } = await import("../src");
+    const links = Object.fromEntries(lookupLinks("https://omt-gift.com/claim?code=1&x=y", "omt-gift.com").map((l) => [l.id, l.href]));
+    expect(links.virustotal).toBe("https://www.virustotal.com/gui/search/https%253A%252F%252Fomt-gift.com%252Fclaim%253Fcode%253D1%2526x%253Dy");
+    expect(links.safebrowsing).toBe("https://transparencyreport.google.com/safe-browsing/search?url=https%3A%2F%2Fomt-gift.com%2Fclaim%3Fcode%3D1%26x%3Dy");
+    expect(links.urlvoid).toBe("https://www.urlvoid.com/scan/omt-gift.com/");
+    expect(lookupLinks("omt-gift.com/claim", "omt-gift.com")[0].href).toMatch(/\/http%253A%252F%252Fomt-gift.com%252Fclaim$/);
+    const evil = Object.fromEntries(lookupLinks("http://a.com", "evil.com/../x?y=1#").map((l) => [l.id, l.href]));
+    expect(evil.urlvoid).toBe("https://www.urlvoid.com/scan/evil.com%2F..%2Fx%3Fy%3D1%23/");
   });
 });

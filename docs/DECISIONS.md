@@ -190,6 +190,17 @@ Pages, …) are never flagged as a whole because of one listed page.
 - Not done yet (need a development build instead of Expo Go, see FUTURE.md §6):
   "Share to Amaan" from WhatsApp, and Android notification reading.
 
+## D15. "Check it yourself on other sites"
+*Oct 2026.*
+
+Under every link, Amaan lists other sites' rating pages (VirusTotal, Google Safe
+Browsing, URLVoid, McAfee, Norton, Cisco Talos, Kaspersky, FortiGuard, Sucuri,
+urlscan.io, URLhaus, ICANN lookup), like VirusTotal's own "other sources" links.
+Amaan only builds the addresses (`data/lookups.json`, shared with the phone app);
+nothing is sent until the user clicks one, which opens that site in their browser
+and shares **the link only** with it (said on screen; no referrer). The suspicious
+link itself is still never opened.
+
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`.
 - [ ] Decide on Lookyloo "deep inspect" (see `LINK_TOOLS_COMPARISON.md`).

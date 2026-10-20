@@ -123,6 +123,36 @@ function Sources({ sources }: { sources: SourceResult[] }) {
   );
 }
 
+/** Other sites' own rating of each link. Opened only when the user clicks one. */
+export function Lookups({ items }: { items: AnalyzedItem[] }) {
+  const links = items.filter((i) => i.lookups?.length).slice(0, 3);
+  if (!links.length) return null;
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <h3 className="font-semibold">Check it yourself on other sites</h3>
+      <p className="mb-2 text-xs text-slate-500">
+        Each opens that site's rating of the link in a new tab. The site sees the link (not your message); the link itself is never opened.
+      </p>
+      {links.map((it) => (
+        <div key={it.id} className="mb-2 last:mb-0">
+          {links.length > 1 && <p className="mb-1 break-all font-mono text-xs text-slate-600" dir="ltr">{it.display}</p>}
+          <ul className="grid gap-1 sm:grid-cols-2">
+            {it.lookups!.map((l) => (
+              <li key={l.id}>
+                <a href={l.href} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"
+                  className="block rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm hover:border-teal-400 hover:bg-teal-50">
+                  <span className="font-medium text-teal-800">{l.name} ↗</span>
+                  <span className="block text-xs text-slate-500">{l.about}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ItemCard({ item }: { item: AnalyzedItem }) {
   const [open, setOpen] = useState(item.risk_level !== "Low");
   const [copied, setCopied] = useState(false);

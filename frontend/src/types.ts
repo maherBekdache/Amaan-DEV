@@ -58,6 +58,14 @@ export interface AnalyzedItem {
   signals: Signal[];
   risk_level: RiskLevel;
   summary: string;
+  lookups?: Lookup[];
+}
+
+export interface Lookup {
+  id: string;
+  name: string;
+  about: string;
+  href: string;
 }
 
 export interface Evidence {

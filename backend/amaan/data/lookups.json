@@ -1,0 +1,17 @@
+{
+  "_note": "Sites where the user can look a link up themselves (opened only when they click). {url} = the link, URL-encoded; {url2} = encoded twice; {host} = the site's address. Keep identical to packages/core/src/data/lookups.json.",
+  "sites": [
+    {"id": "virustotal", "name": "VirusTotal", "about": "70+ antivirus and URL scanners", "template": "https://www.virustotal.com/gui/search/{url2}"},
+    {"id": "safebrowsing", "name": "Google Safe Browsing", "about": "Google's list of unsafe sites", "template": "https://transparencyreport.google.com/safe-browsing/search?url={url}"},
+    {"id": "urlvoid", "name": "URLVoid", "about": "30+ blocklists and domain age", "template": "https://www.urlvoid.com/scan/{host}/"},
+    {"id": "mcafee", "name": "McAfee SiteAdvisor", "about": "McAfee's site rating", "template": "https://www.siteadvisor.com/sitereport.html?url={host}"},
+    {"id": "norton", "name": "Norton Safe Web", "about": "Norton's site rating and user reviews", "template": "https://safeweb.norton.com/report?url={host}"},
+    {"id": "talos", "name": "Cisco Talos", "about": "web reputation and category", "template": "https://talosintelligence.com/reputation_center/lookup?search={host}"},
+    {"id": "kaspersky", "name": "Kaspersky OpenTIP", "about": "Kaspersky's threat verdict", "template": "https://opentip.kaspersky.com/{host}/"},
+    {"id": "fortiguard", "name": "FortiGuard", "about": "Fortinet's web filter category", "template": "https://www.fortiguard.com/webfilter?q={host}"},
+    {"id": "sucuri", "name": "Sucuri SiteCheck", "about": "malware and blocklist scan of the site", "template": "https://sitecheck.sucuri.net/results/{host}"},
+    {"id": "urlscan", "name": "urlscan.io", "about": "earlier scans and screenshots of this site", "template": "https://urlscan.io/domain/{host}"},
+    {"id": "urlhaus", "name": "URLhaus", "about": "reported malware links", "template": "https://urlhaus.abuse.ch/browse.php?search={url}"},
+    {"id": "whois", "name": "ICANN Lookup (who owns it)", "about": "registration date and owner: brand-new sites are a red flag", "template": "https://lookup.icann.org/en/lookup?name={host}"}
+  ]
+}

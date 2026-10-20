@@ -13,6 +13,7 @@ from amaan.extract.html import parse_html
 from amaan.extract.payloads import classify_payload
 from amaan.extract.qr import QRResult
 from amaan.extract.urls import ExtractedUrl, TextFlags, defang, extract_urls, parse_candidate
+from amaan.lookups import lookup_links
 from amaan.schemas import (
     AnalyzedItem, Evidence, InputType, ItemKind, ItemSource, RiskLevel, Signal, TextRequest,
     UrlVetResult, UrlVetStatus,
@@ -124,6 +125,7 @@ class Analyzer:
             item = AnalyzedItem(
                 id=idx, kind=p.kind, source=p.source, display=p.display, host=p.host, host_ascii=p.host_ascii,
                 details=p.details, urlvet=p.urlvet, sources=p.sources, signals=signals, risk_level=level, summary="",
+                lookups=lookup_links(p.check_url, p.host_ascii) if p.kind is ItemKind.url and p.check_url and p.host_ascii else [],
             )
             item.summary = aggregate.item_summary(item)
             items.append(item)

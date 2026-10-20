@@ -10,6 +10,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from amaan.lookups import Lookup
 from amaan.reputation.base import SourceResult
 
 
@@ -110,6 +111,7 @@ class AnalyzedItem(BaseModel):
     signals: list[Signal] = []
     risk_level: RiskLevel
     summary: str
+    lookups: list[Lookup] = Field(default=[], description="Links: look this link up yourself on other sites")
 
 
 class Evidence(BaseModel):

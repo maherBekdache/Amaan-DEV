@@ -1,8 +1,9 @@
 // Result card and small building blocks. Links are only ever shown defanged
 // (example[.]com) and never made tappable: the app never opens a checked link.
-import { ADVICE, topReasons, type EvidenceLabel, type RiskLevel, type Severity } from "@amaan/core";
-import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+// It only opens other sites' rating pages (VirusTotal, …) when the user taps one.
+import { ADVICE, lookupLinks, topReasons, type EvidenceLabel, type Item, type RiskLevel, type Severity } from "@amaan/core";
+import { useState, type ReactNode } from "react";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Checked } from "./check";
 
 export const C = {
@@ -75,9 +76,35 @@ export function ResultCard({ r }: { r: Checked }) {
               <Text style={s.itemKind}>{KIND[it.kind] ?? it.kind} · {LOOK[it.riskLevel].icon} {ADVICE[it.riskLevel].title}</Text>
               <Text style={s.mono} selectable>{it.display}</Text>
               {it.kind === "url" && <Text style={s.muted}>{it.checked ? "Checked online (sandbox + safety lists)" : "Not checked online"}</Text>}
+              <Lookups item={it} />
             </View>
           ))}
         </Card>
+      )}
+    </View>
+  );
+}
+
+/** "Check it yourself": other sites' rating of this link, opened in the browser on tap. */
+function Lookups({ item }: { item: Item }) {
+  const [open, setOpen] = useState(false);
+  if (item.kind !== "url" || !item.url || !item.hostAscii) return null;
+  return (
+    <View style={{ gap: 6, marginTop: 4 }}>
+      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button">
+        <Text style={{ color: "#0f766e", fontWeight: "600" }}>{open ? "▾" : "▸"} Check it yourself on other sites</Text>
+      </Pressable>
+      {open && (
+        <>
+          <Text style={[s.muted, { fontSize: 12 }]}>Opens that site's rating in your browser. The site sees the link, not your message.</Text>
+          {lookupLinks(item.url, item.hostAscii).map((l) => (
+            <Pressable key={l.id} accessibilityRole="link" onPress={() => Linking.openURL(l.href)}
+              style={({ pressed }) => [s.lookup, pressed && { opacity: 0.6 }]}>
+              <Text style={{ color: "#115e59", fontWeight: "600" }}>{l.name} ↗</Text>
+              <Text style={[s.muted, { fontSize: 12 }]}>{l.about}</Text>
+            </Pressable>
+          ))}
+        </>
       )}
     </View>
   );
@@ -99,5 +126,6 @@ export const s = StyleSheet.create({
   chip: { fontSize: 11, fontWeight: "600", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: "hidden" },
   item: { gap: 2, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 8 },
   itemKind: { fontSize: 13, fontWeight: "600", color: C.muted },
+  lookup: { borderWidth: 1, borderColor: C.line, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
   mono: { fontFamily: "monospace", color: C.ink, fontSize: 14 },
 });

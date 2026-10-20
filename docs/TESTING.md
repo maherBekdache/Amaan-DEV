@@ -51,6 +51,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 - [ ] 3.2 Sources without a key say **Not set up** (not an error). Add the key to `.env`, run `stop.bat` + `start-everything.bat` → the row now has a result.
 - [ ] 3.3 Paste a link copied (as text) from today's PhishTank / OpenPhish list → at least one row **Flagged**, reason labelled *Reported by others*.
 
+- [ ] 3.4 Under **Why?**, **Check it yourself on other sites** lists 12 sites. Click **VirusTotal ↗** and **Google Safe Browsing ↗** → each opens its rating of that link in a new tab. Amaan's own result doesn't change.
+
 ## 4. AI second opinion + Lookyloo
 - [ ] 4.1 With Ollama running, a result shows an **AI second opinion** card (automatic, or **Ask the AI**). It never replaces the verdict above it.
 - [ ] 4.2 Lookyloo is up: http://127.0.0.1:5100 opens its page (only on this computer).
@@ -79,6 +81,7 @@ http://localhost:8000 → **📱 Phone app**.
 - [ ] 6.1 Top right shows **● 192.168.x.x:8001** after pairing.
 - [ ] 6.2 **Check** tab: paste the Arabic prize scam → **Dangerous** with reasons; the link says *Checked online*.
 - [ ] 6.3 **📷 Scan QR** at a QR on the computer screen (the examples) → same results as the web app; the QR's link is never opened.
+- [ ] 6.3b Under **What we found**, tap **▸ Check it yourself on other sites** → tap a site → it opens in the phone's browser.
 - [ ] 6.4 **🖼️ Screenshot**: pick a screenshot of a QR code → result.
 - [ ] 6.5 Turn the computer's Amaan off (`stop.bat`) → checks still work, links say *Not checked online* and are never "No warning signs".
 - [ ] 6.6 **WhatsApp** tab → **Pick exported chat** → choose the sample `.zip` (AirDrop / Files) or a real export saved to Files → same findings as 5.1, photo QR included.

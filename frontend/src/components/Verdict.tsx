@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Evidence, EvidenceLabel, RiskLevel, Severity, Signal } from "../types";
 import AIOpinionCard from "./AIOpinionCard";
-import { ItemCard } from "./ItemDetails";
+import { ItemCard, Lookups } from "./ItemDetails";
 
 // Plain-language result: verdict, what to do, why (with evidence labels),
 // and the technical details behind a toggle.
@@ -119,6 +119,8 @@ export default function Verdict({ ev, checked, aiAuto = false }: { ev: Evidence;
       ) : (
         <p className="text-sm text-slate-500">{ev.explanation}</p>
       )}
+
+      <Lookups items={ev.items} />
 
       <AIOpinionCard ev={ev} text={checked?.text} auto={aiAuto} />
 
