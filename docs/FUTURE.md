@@ -40,10 +40,16 @@ opinion. That keeps every verdict explainable (project rule 3).
 - Plug it into the existing `scam-intent` slot of the voice pipeline (Milestone 2) too.
 
 ## 3. Visual phishing detection
-- **PhishIntention** (CC0 code) on screenshots Lookyloo / URL.vet already take, in
-  static mode only. Add Lebanese brands (OMT, Whish, BLOM, Bank Audi, touch, alfa,
-  LibanPost…) to its logo list. Detects fake login pages that are too new for any list.
-- Ask the model authors about the weights' licence before any public release.
+- **PhishIntention** (USENIX Security 2022; CC0 code) detects a known brand's logo on
+  a login page whose domain isn't that brand's: fake login pages too new for any list.
+- Run it on screenshots Lookyloo / URL.vet already take, in **static mode only**: its
+  "CRP locator" step drives a real Chrome through the site, which would break hard
+  rule 1 unless it runs in a container.
+- Add Lebanese brands (OMT, Whish, BLOM, Bank Audi, touch, alfa, LibanPost…) to its
+  logo list; it ships ~280 global brands.
+- Heavy (PyTorch + Detectron2, slow on CPU): use the GPU machine.
+- Weights are downloaded from Google Drive with no licence stated: ask the authors
+  before any public release.
 
 ## 4. More sources and tools
 - **Lookyloo + Pandora** for files people receive (PDF, APK).

@@ -1,9 +1,8 @@
 // Amaan's local checks. Port of backend/amaan/scoring/local_rules.py.
 import brandsData from "./data/brands.json";
-import type { Payload } from "./payloads";
-import { CRYPTO_SCHEMES } from "./payloads";
+import { CRYPTO_SCHEMES, type Payload } from "./payloads";
 import { sig, type Signal } from "./types";
-import { extractUrls, toUnicodeHost, type ExtractedUrl, type TextFlags } from "./urls";
+import { toUnicodeHost, type ExtractedUrl, type TextFlags } from "./urls";
 
 interface Brand { name: string; domains: string[]; keywords: string[] }
 const BRANDS: Brand[] = (brandsData as { brands: Brand[] }).brands;
@@ -152,5 +151,3 @@ export function textFlagSignals(f: TextFlags): Signal[] {
     "Security teams write links this way to make them unclickable. We restored them for analysis.", "info"));
   return out;
 }
-
-export { extractUrls };

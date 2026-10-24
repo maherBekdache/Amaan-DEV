@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-
-interface Pairing { enabled: boolean; server?: string; token?: string; pair_uri?: string; message?: string }
+import { getPairing } from "../lib/api";
+import type { Pairing } from "../types";
 
 /** Shows the QR code the Amaan phone app scans to use this computer's link checker. */
 export default function PhonePanel() {
@@ -9,9 +9,8 @@ export default function PhonePanel() {
   const [qr, setQr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/phone/pairing", { credentials: "omit" })
-      .then((r) => r.json())
-      .then(async (data: Pairing) => {
+    getPairing()
+      .then(async (data) => {
         setP(data);
         if (data.enabled && data.pair_uri) setQr(await QRCode.toDataURL(data.pair_uri, { margin: 1, width: 260 }));
       })

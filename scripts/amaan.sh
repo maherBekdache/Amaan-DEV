@@ -3,7 +3,7 @@
 #   ./scripts/amaan.sh up [--urlvet-ui] [--whatsapp] [--lookyloo] [--phone] | down | status | logs | setup | update-urlvet
 #   ./scripts/amaan.sh dev [--mock]   hot-reload backend :8000 + frontend :5173
 #                                     (--mock = FAKE URL.vet, development only)
-#   ./scripts/amaan.sh test           backend tests + frontend type check
+#   ./scripts/amaan.sh test           backend tests + frontend type check + phone rules (packages/core)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,7 +12,6 @@ URLVET_REPO="https://github.com/urlvet/urlvet.git"
 URLVET_REF="${URLVET_REF:-a6b54c29b73a053b916805173fba352e9be0204c}"  # pinned; bump deliberately
 NETWORK="amaan-urlvet"
 CMD="${1:-up}"
-UI="${2:-}"
 ARGS=" ${*:2} "
 LOOKY_DIR="$ROOT/third_party/lookyloo"
 LOOKY_REPO="https://github.com/Lookyloo/lookyloo.git"
@@ -84,7 +83,7 @@ case "$CMD" in
     command -v docker >/dev/null && (cd "$ROOT" && docker compose stop amaan >/dev/null 2>&1 || true)
     pids=()
     trap 'kill "${pids[@]}" 2>/dev/null' EXIT INT TERM
-    if [ "$UI" = "--mock" ]; then
+    if [[ "$ARGS" == *" --mock "* ]]; then
       echo "!! MOCK URL.vet on :8080: verdicts are FAKE, never use it for the demo."
       (cd "$ROOT/backend" && .venv/bin/python -m uvicorn devtools.mock_urlvet:app --host 127.0.0.1 --port 8080) & pids+=($!)
     fi
@@ -151,5 +150,5 @@ case "$CMD" in
     git -C "$URLVET_DIR" -c advice.detachedHead=false checkout --quiet "$URLVET_REF"
     echo "URL.vet is at $URLVET_REF. Run './scripts/amaan.sh up' to rebuild."
     ;;
-  *) echo "usage: $0 up [--urlvet-ui|--whatsapp] | down | status | logs | setup | update-urlvet | dev [--mock] | test" >&2; exit 2 ;;
+  *) echo "usage: $0 up [--urlvet-ui] [--whatsapp] [--lookyloo] [--phone] | down | status | logs | setup | update-urlvet | dev [--mock] | test" >&2; exit 2 ;;
 esac

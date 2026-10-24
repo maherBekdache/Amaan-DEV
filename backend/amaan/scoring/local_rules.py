@@ -6,17 +6,14 @@ about (Lebanese brands, QR payload risks, hidden characters in messages).
 
 from __future__ import annotations
 
-import json
 import re
 import unicodedata
-from functools import lru_cache
-from pathlib import Path
 
+from amaan.data import load
 from amaan.extract.payloads import CRYPTO_SCHEMES, Payload
-from amaan.extract.urls import ExtractedUrl, TextFlags
+from amaan.extract.urls import ExtractedUrl, TextFlags, extract_urls, to_unicode_host
 from amaan.schemas import EvidenceLabel, ItemKind, Severity, Signal
 
-DATA = Path(__file__).resolve().parent.parent / "data" / "brands.json"
 # Words scam domains use to look rewarding or official. Matched inside the
 # domain name only (not the path), and never on official/known domains.
 BAIT_WORDS = ("prize", "winner", "win", "gift", "bonus", "reward", "lottery", "lucky", "claim", "free",
@@ -39,9 +36,8 @@ def _sig(id: str, title: str, detail: str, severity: Severity,
     return Signal(id=id, title=title, detail=detail, severity=severity, label=label, source="amaan")
 
 
-@lru_cache
 def _data() -> dict:
-    return json.loads(DATA.read_text(encoding="utf-8"))
+    return load("brands.json")
 
 
 def official_domains() -> dict[str, str]:
@@ -78,11 +74,7 @@ def url_signals(u: ExtractedUrl) -> list[Signal]:
     sigs: list[Signal] = []
     officials = official_domains()
     reg = u.registrable.lower()
-    reg_unicode = reg
-    if reg.startswith("xn--") or ".xn--" in reg:
-        from amaan.extract.urls import to_unicode_host
-
-        reg_unicode = to_unicode_host(reg)
+    reg_unicode = to_unicode_host(reg) if reg.startswith("xn--") or ".xn--" in reg else reg
 
     if reg in officials:
         sigs.append(_sig(
@@ -251,8 +243,6 @@ def text_flag_signals(flags: TextFlags) -> list[Signal]:
 
 def link_text_mismatch(href_host: str, anchor_text: str) -> Signal | None:
     """An <a> whose visible text is a different domain than where it goes."""
-    from amaan.extract.urls import extract_urls
-
     shown = extract_urls(anchor_text, limit=1).urls
     if not shown:
         return None

@@ -12,7 +12,7 @@ to treat it as data only. The output is validated and clipped.
 
 from __future__ import annotations
 
-import json
+import re
 import time
 
 from pydantic import BaseModel
@@ -116,8 +116,6 @@ async def second_opinion(provider: LLMProvider, ev: Evidence, text: str | None =
 
 
 def refang(display: str) -> str:
-    import re
-
     return re.sub(r"^hxxp", "http", re.sub(r"^fxp", "ftp", display)).replace("[.]", ".")
 
 
@@ -127,5 +125,3 @@ def first_link(ev: Evidence) -> str | None:
             return refang(it.display)
     return None
 
-
-__all__ = ["AIOpinion", "SCHEMA", "build_prompt", "second_opinion", "first_link", "json"]

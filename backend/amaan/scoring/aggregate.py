@@ -13,6 +13,7 @@ Rules (kept simple so they can be explained in the report):
 
 from __future__ import annotations
 
+from amaan.reputation.base import SourceResult, SourceStatus, SourceVerdict
 from amaan.schemas import (
     AnalyzedItem, EvidenceLabel, ItemKind, RiskLevel, Severity, Signal, UrlVetResult, UrlVetStatus,
 )
@@ -23,7 +24,12 @@ _VERDICT = {"risky": RiskLevel.high, "suspicious": RiskLevel.medium, "safe": Ris
 
 
 def worst(*levels: RiskLevel) -> RiskLevel:
-    return max(levels, key=lambda l: _ORDER[l], default=RiskLevel.low)
+    return max(levels, key=_ORDER.__getitem__, default=RiskLevel.low)
+
+
+def rank(level: RiskLevel) -> int:
+    """0 = Low, 1 = Medium, 2 = High (for sorting)."""
+    return _ORDER[level]
 
 
 def urlvet_signals(r: UrlVetResult) -> list[Signal]:
@@ -54,16 +60,15 @@ def urlvet_signals(r: UrlVetResult) -> list[Signal]:
     return out
 
 
-def source_signals(sources: list) -> list[Signal]:
+def source_signals(sources: list[SourceResult]) -> list[Signal]:
     """Turn the multi-source answers into labelled reasons."""
-    from amaan.reputation.base import SourceStatus, SourceVerdict
-
     out: list[Signal] = []
     checked = [r for r in sources if r.status is SourceStatus.ok]
     for r in checked:
+        sid = f"source_{r.source.lower().replace(' ', '_').replace('.', '')}"
         if r.verdict is SourceVerdict.malicious:
             out.append(Signal(
-                id=f"source_{r.source.lower().replace(' ', '_').replace('.', '')}",
+                id=sid,
                 title=(f"Reported as dangerous by {r.source}" if r.community else f"{r.source} flags it as dangerous"),
                 detail=r.detail, severity=Severity.high,
                 label=EvidenceLabel.community_report if r.community else EvidenceLabel.automated_indicator,
@@ -71,7 +76,7 @@ def source_signals(sources: list) -> list[Signal]:
             ))
         elif r.verdict is SourceVerdict.suspicious:
             out.append(Signal(
-                id=f"source_{r.source.lower().replace(' ', '_').replace('.', '')}", title=f"{r.source} finds it suspicious",
+                id=sid, title=f"{r.source} finds it suspicious",
                 detail=r.detail, severity=Severity.medium, label=EvidenceLabel.automated_indicator, source=r.source,
             ))
     clean = [r.source for r in checked if r.verdict is SourceVerdict.clean]

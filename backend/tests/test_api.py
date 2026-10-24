@@ -1,40 +1,7 @@
 import httpx
-import pytest
-import respx
-from fastapi.testclient import TestClient
 
-from amaan.config import get_settings
-from amaan.main import app
-from tests.conftest import to_bytes
-
-URLVET = get_settings().urlvet_base_url
-
-
-def report(verdict: str, score: int, listed: bool = False) -> dict:
-    return {"threat_feeds": {"listed": listed, "sources": ["PhishTank"] if listed else []},
-            "result": {"verdict": verdict, "final_score": score, "trust_score": score, "risk_score": 100 - score,
-                       "reasons": {"bad_reasons": ["New domain."] if verdict != "Safe" else None,
-                                   "good_reasons": ["Old domain."] if verdict == "Safe" else None}}}
-
-
-@pytest.fixture
-def client():
-    with respx.mock(assert_all_called=False) as mock:
-        mock.route(host="testserver").pass_through()
-        with TestClient(app) as c:
-            c.mock = mock
-            yield c
-
-
-def urlvet_returns(client, mapping: dict[str, dict]):
-    def handler(request: httpx.Request):
-        target = request.url.params["url"]
-        for key, body in mapping.items():
-            if key in target:
-                return httpx.Response(200, json=body)
-        return httpx.Response(200, json=report("Safe", 90))
-
-    client.mock.get(f"{URLVET}/api/v1/analyze").mock(side_effect=handler)
+from amaan.config import DEFAULT_HOSTS, Settings, get_settings
+from tests.conftest import URLVET, report, to_bytes, urlvet_returns
 
 
 def test_health(client):
@@ -184,8 +151,6 @@ def test_dropped_link_all_flavours_keeps_mismatch(client):
 
 
 def test_allowed_hosts_from_env(monkeypatch):
-    from amaan.config import DEFAULT_HOSTS, Settings
-
     monkeypatch.setenv("AMAAN_ALLOWED_HOSTS", "localhost, *.app.github.dev")
     assert Settings().allowed_hosts == ["localhost", "*.app.github.dev"]
     monkeypatch.setenv("AMAAN_ALLOWED_HOSTS", "")
@@ -193,8 +158,6 @@ def test_allowed_hosts_from_env(monkeypatch):
 
 
 def test_phone_gateway_requires_token(client, monkeypatch):
-    from amaan.config import get_settings
-
     s = get_settings()
     monkeypatch.setattr(s, "phone_token", "tok123")
     monkeypatch.setattr(s, "phone_url", "http://192.168.1.20:8001")

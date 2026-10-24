@@ -77,7 +77,7 @@ Demo video plan: [docs/DEMO.md](docs/DEMO.md) · Future directions: [docs/FUTURE
 
 ## Work on it
 - How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Developer guide (tests, dev mode, Codespaces, API, project layout): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- Developer guide (tests, dev mode, API, project layout): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 - Design and privacy decisions: [docs/DECISIONS.md](docs/DECISIONS.md)
 
 | Milestone | | |

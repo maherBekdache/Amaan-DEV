@@ -1,33 +1,11 @@
 import { useState } from "react";
-import type { AnalyzedItem, EvidenceLabel, RiskLevel, Severity, Signal, SourceResult } from "../types";
+import type { AnalyzedItem, Signal, SourceResult } from "../types";
+import { LabelChip, RiskBadge, SEVERITY_DOT } from "./badges";
 
 // Technical details for one found item (shown under "Show technical details").
 // Security: every string from the backend is rendered as plain text by React.
 // Links are shown defanged and are never clickable.
 
-export const RISK_STYLE: Record<RiskLevel, string> = {
-  Low: "bg-emerald-100 text-emerald-800 border-emerald-300",
-  Medium: "bg-amber-100 text-amber-900 border-amber-300",
-  High: "bg-red-100 text-red-800 border-red-300",
-};
-
-const LABEL_TEXT: Record<EvidenceLabel, string> = {
-  automated_indicator: "Automated indicator",
-  community_report: "Community report",
-  verified: "Verified",
-};
-const LABEL_STYLE: Record<EvidenceLabel, string> = {
-  automated_indicator: "bg-slate-100 text-slate-700",
-  community_report: "bg-purple-100 text-purple-800",
-  verified: "bg-emerald-100 text-emerald-800",
-};
-const SEV_DOT: Record<Severity, string> = {
-  high: "bg-red-500",
-  medium: "bg-amber-500",
-  low: "bg-yellow-300",
-  info: "bg-sky-400",
-  good: "bg-emerald-500",
-};
 const KIND_TEXT: Record<string, string> = {
   url: "Link", wifi: "Wi-Fi", tel: "Phone call", sms: "SMS", mailto: "E-mail", geo: "Location", text: "Text",
 };
@@ -35,22 +13,14 @@ const SOURCE_TEXT: Record<string, string> = {
   text: "found in text", html_link: "link target", uri_list: "dropped link", qr: "from QR code",
 };
 
-export function RiskBadge({ level, big = false }: { level: RiskLevel; big?: boolean }) {
-  return (
-    <span className={`inline-block rounded-full border font-bold ${RISK_STYLE[level]} ${big ? "px-4 py-1 text-lg" : "px-2 py-0.5 text-xs"}`}>
-      {level} risk
-    </span>
-  );
-}
-
 function SignalRow({ s }: { s: Signal }) {
   return (
     <li className="flex gap-2 py-1.5">
-      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${SEV_DOT[s.severity]}`} title={s.severity} />
+      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${SEVERITY_DOT[s.severity]}`} title={s.severity} />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-medium">{s.title}</span>
-          <span className={`rounded px-1.5 text-[11px] font-medium ${LABEL_STYLE[s.label]}`}>{LABEL_TEXT[s.label]}</span>
+          <LabelChip label={s.label} />
           <span className="text-[11px] text-slate-400">via {s.source === "urlvet" ? "URL.vet" : s.source === "amaan" ? "Amaan" : s.source}</span>
         </div>
         {s.detail && <p className="text-sm text-slate-600" dir="auto">{s.detail}</p>}

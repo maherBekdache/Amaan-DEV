@@ -1,5 +1,5 @@
 import type { HistoryEntry } from "../lib/history";
-import { RiskBadge } from "./ItemDetails";
+import { RiskBadge } from "./badges";
 
 // Stored only in this browser: verdict + defanged site names, never message text.
 export default function HistoryList({ entries, onClear }: { entries: HistoryEntry[]; onClear: () => void }) {

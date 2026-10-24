@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-DONE, UNKNOWN = 1, -1
+DONE = 1  # Lookyloo's capture status code for 'finished'
 
 
 @dataclass

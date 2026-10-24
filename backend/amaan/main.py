@@ -14,15 +14,15 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from amaan import __version__
-from amaan.analyzer import Analyzer
-from amaan.api import whatsapp
-from amaan.clients.urlvet import UrlVetClient
 from amaan.ai.provider import OllamaProvider
 from amaan.ai.reasoner import AIOpinion, first_link, second_opinion
+from amaan.analyzer import Analyzer
+from amaan.api import whatsapp
 from amaan.clients.lookyloo import LookylooClient
-from amaan.reputation.aggregator import Reputation
+from amaan.clients.urlvet import UrlVetClient
 from amaan.config import get_settings
 from amaan.extract.qr import ImageRejected, available_decoders, decode_qr_codes
+from amaan.reputation.aggregator import Reputation
 from amaan.schemas import Evidence, ExplainRequest, HealthResponse, InputType, LinkRequest, TextRequest
 
 # Privacy: we log events and counts only, never message text, links or images.
@@ -110,7 +110,7 @@ async def guard(request: Request, call_next):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     if gateway:
         response.headers["Access-Control-Allow-Origin"] = "*"
-    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import", "/sources", "/ai", "/gateway", "/phone")):
+    if request.url.path.startswith(("/analyze", "/health", "/whatsapp", "/import", "/ai", "/gateway", "/phone")):
         response.headers["Cache-Control"] = "no-store"
     else:
         response.headers["Content-Security-Policy"] = CSP
@@ -135,18 +135,32 @@ async def analyze_text(req: TextRequest, request: Request) -> Evidence:
     return await request.app.state.analyzer.analyze_text(req)
 
 
-@app.post("/analyze/link", response_model=Evidence)
-async def analyze_link(req: LinkRequest, request: Request) -> Evidence:
-    """Hybrid mode: the app analyzed the message on the device and sends only links."""
-    if not any(u.strip() for u in req.urls):
-        raise HTTPException(400, "Send at least one link.")
-    return await request.app.state.analyzer.analyze_links(req.urls)
+@app.post("/analyze/image", response_model=Evidence)
+async def analyze_image(request: Request, file: UploadFile = File(...),
+                        source: str = Form("image")) -> Evidence:
+    input_type = InputType.camera if source == "camera" else InputType.image
+    try:
+        data = await file.read(settings.max_upload_bytes + 1)
+        if len(data) > settings.max_upload_bytes:
+            raise HTTPException(413, f"Image too large (max {settings.max_upload_bytes // (1024 * 1024)} MB).")
+        try:
+            qr = await run_in_threadpool(
+                decode_qr_codes, data, max_pixels=settings.max_image_pixels,
+                max_codes=settings.max_qr_codes_per_image, model_dir=settings.wechat_model_dir,
+            )
+        except ImageRejected as e:
+            raise HTTPException(415, str(e)) from None
+    finally:
+        # Closing the UploadFile deletes any temporary file it spooled to disk.
+        await file.close()
+        data = b""
+    return await request.app.state.analyzer.analyze_qr(qr, input_type)
 
 
 # --- phone app (hybrid mode) ---------------------------------------------------
 # The phone analyzes messages and QR codes itself and sends only links here.
-# Reachable from the local network only when the phone gateway is enabled
-# (start-everything.bat / -Phone) and only with the pairing token.
+# /gateway/* is reachable from the local network only when the phone gateway is
+# enabled (start-everything.bat / -Phone) and only with the pairing token.
 
 
 @app.get("/gateway/health")
@@ -156,7 +170,9 @@ async def gateway_health(request: Request) -> dict:
 
 
 @app.post("/gateway/analyze/link", response_model=Evidence)
-async def gateway_analyze_link(req: LinkRequest, request: Request) -> Evidence:
+@app.post("/analyze/link", response_model=Evidence, include_in_schema=False)  # same, from this computer
+async def analyze_link(req: LinkRequest, request: Request) -> Evidence:
+    """Only links are sent here, never the message or image."""
     if not any(u.strip() for u in req.urls):
         raise HTTPException(400, "Send at least one link.")
     return await request.app.state.analyzer.analyze_links(req.urls)
@@ -182,43 +198,6 @@ async def ai_explain(req: ExplainRequest, request: Request) -> AIOpinion:
     if req.open_page and link and st.lookyloo.enabled:
         capture = await st.lookyloo.capture(link)
     return await second_opinion(st.ai, req.evidence, req.text, capture)
-
-
-@app.get("/sources")
-async def sources(request: Request) -> dict:
-    """Which reputation sources are set up (no secrets)."""
-    s = settings
-    feeds = request.app.state.reputation.feeds
-    return {"sources": [
-        {"name": f.name, "kind": "blocklist", "ready": bool(f.loaded_at), "entries": len(f.urls)} for f in feeds.feeds
-    ] + [
-        {"name": "Google Safe Browsing", "kind": "blocklist", "ready": bool(s.safe_browsing_key)},
-        {"name": "VirusTotal", "kind": "engines", "ready": bool(s.virustotal_key)},
-        {"name": "urlscan.io", "kind": "sandbox", "ready": bool(s.urlscan_key)},
-        {"name": "URL.vet", "kind": "sandbox", "ready": True},
-    ]}
-
-
-@app.post("/analyze/image", response_model=Evidence)
-async def analyze_image(request: Request, file: UploadFile = File(...),
-                        source: str = Form("image")) -> Evidence:
-    input_type = InputType.camera if source == "camera" else InputType.image
-    try:
-        data = await file.read(settings.max_upload_bytes + 1)
-        if len(data) > settings.max_upload_bytes:
-            raise HTTPException(413, f"Image too large (max {settings.max_upload_bytes // (1024 * 1024)} MB).")
-        try:
-            qr = await run_in_threadpool(
-                decode_qr_codes, data, max_pixels=settings.max_image_pixels,
-                max_codes=settings.max_qr_codes_per_image, model_dir=settings.wechat_model_dir,
-            )
-        except ImageRejected as e:
-            raise HTTPException(415, str(e)) from None
-    finally:
-        # Closing the UploadFile deletes any temporary file it spooled to disk.
-        await file.close()
-        data = b""
-    return await request.app.state.analyzer.analyze_qr(qr, input_type)
 
 
 app.include_router(whatsapp.router)

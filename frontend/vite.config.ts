@@ -8,18 +8,15 @@ const api = process.env.AMAAN_API ?? "http://127.0.0.1:8000";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // Relative asset paths so the same build also works inside Electron later.
-  base: "./",
+  base: "./", // relative asset paths: the backend serves the build from any folder
   server: {
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
-    // GitHub Codespaces serves forwarded ports on *.app.github.dev.
-    allowedHosts: process.env.CODESPACES ? [".app.github.dev"] : undefined,
-    proxy: {
-      "/analyze": { target: api, changeOrigin: true },
-      "/health": { target: api, changeOrigin: true },
-    },
+    // Every backend route the web app calls (see src/lib/api.ts).
+    proxy: Object.fromEntries(
+      ["/analyze", "/health", "/import", "/whatsapp", "/ai", "/phone"].map((p) => [p, { target: api, changeOrigin: true }]),
+    ),
   },
   build: { sourcemap: false },
 });

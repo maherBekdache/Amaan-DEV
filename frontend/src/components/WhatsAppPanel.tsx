@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, wa } from "../lib/api";
 import type { ImportReport, WaAlert, WaChat, WaPolicy, WaStatus } from "../types";
-import { RiskBadge } from "./ItemDetails";
+import { RiskBadge } from "./badges";
 import Verdict from "./Verdict";
 
 interface Props {

@@ -15,6 +15,6 @@ labels: bug
 **What happened** (verdict, error text, screenshot)
 
 **Setup**
-- Mode: full (`up`) / dev / mock
-- Windows version, browser:
-- Pill in the top-right said:
+- Mode: full (`start.bat` / `start-everything.bat`) / dev / mock / phone app
+- Windows version, browser (or phone model):
+- Status in the top-right said:

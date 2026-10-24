@@ -12,6 +12,7 @@ import base64
 import hashlib
 import ipaddress
 import posixpath
+from functools import partial
 from urllib.parse import unquote, urlsplit
 
 import httpx
@@ -19,6 +20,8 @@ import httpx
 from amaan.reputation.base import SourceResult, SourceStatus, SourceVerdict
 
 API = "https://safebrowsing.googleapis.com/v5/hashes:search"
+NAME = "Google Safe Browsing"
+_result = partial(SourceResult, source=NAME, kind="blocklist")
 NAMES = {"MALWARE": "malware", "SOCIAL_ENGINEERING": "phishing / deceptive site",
          "UNWANTED_SOFTWARE": "unwanted software", "POTENTIALLY_HARMFUL_APPLICATION": "harmful app"}
 
@@ -69,26 +72,25 @@ def full_hash(expr: str) -> bytes:
 
 
 async def check(url: str, api_key: str | None, client: httpx.AsyncClient) -> SourceResult:
-    name = "Google Safe Browsing"
     if not api_key:
-        return SourceResult(source=name, kind="blocklist", status=SourceStatus.not_configured,
-                            detail="Needs a free Google API key (AMAAN_SAFE_BROWSING_KEY).")
+        return _result(status=SourceStatus.not_configured,
+                       detail="Needs a free Google API key (AMAAN_SAFE_BROWSING_KEY).")
     hashes = {full_hash(e) for e in expressions(url)}
     prefixes = sorted({base64.b64encode(h[:4]).decode() for h in hashes})
     try:
         r = await client.get(API, params=[("key", api_key), *[("hashPrefixes", p) for p in prefixes]], timeout=10)
     except httpx.TimeoutException:
-        return SourceResult(source=name, kind="blocklist", status=SourceStatus.timeout, detail="No answer in time.")
+        return _result(status=SourceStatus.timeout, detail="No answer in time.")
     except httpx.HTTPError:
-        return SourceResult(source=name, kind="blocklist", status=SourceStatus.error, detail="Not reachable.")
+        return _result(status=SourceStatus.error, detail="Not reachable.")
     if r.status_code == 429:
-        return SourceResult(source=name, kind="blocklist", status=SourceStatus.rate_limited, detail="Quota reached.")
+        return _result(status=SourceStatus.rate_limited, detail="Quota reached.")
     if r.status_code != 200:
-        return SourceResult(source=name, kind="blocklist", status=SourceStatus.error, detail=f"HTTP {r.status_code}.")
+        return _result(status=SourceStatus.error, detail=f"HTTP {r.status_code}.")
     try:
         found = r.json().get("fullHashes") or []
     except ValueError:
-        return SourceResult(source=name, kind="blocklist", status=SourceStatus.error, detail="Unreadable answer.")
+        return _result(status=SourceStatus.error, detail="Unreadable answer.")
     threats: set[str] = set()
     for fh in found:
         try:
@@ -98,7 +100,7 @@ async def check(url: str, api_key: str | None, client: httpx.AsyncClient) -> Sou
             continue
     if threats:
         kinds = ", ".join(sorted(NAMES.get(t, t.lower()) for t in threats))
-        return SourceResult(source=name, kind="blocklist", status=SourceStatus.ok, verdict=SourceVerdict.malicious,
-                            detail=f"Listed by Google as {kinds}. Advisory provided by Google.")
-    return SourceResult(source=name, kind="blocklist", status=SourceStatus.ok, verdict=SourceVerdict.clean,
-                        detail="Not on Google's lists.")
+        return _result(status=SourceStatus.ok, verdict=SourceVerdict.malicious,
+                       detail=f"Listed by Google as {kinds}. Advisory provided by Google.")
+    return _result(status=SourceStatus.ok, verdict=SourceVerdict.clean,
+                   detail="Not on Google's lists.")

@@ -1,7 +1,7 @@
 # Added on top of docker-compose.yml by start-everything.bat / 'up -Phone'.
 # Opens port 8001 on this computer's Wi-Fi/LAN address so the phone app can
 # reach the link checker. Only /gateway/* answers there, and only with the
-# pairing token (shown as a QR code in Amaan: WhatsApp tab -> Connect phone).
+# pairing token (shown as a QR code in Amaan's 📱 Phone app tab).
 services:
   amaan:
     ports:

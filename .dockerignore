@@ -5,4 +5,7 @@
 frontend/dist
 third_party
 docs
+app
+packages
+samples
 .git

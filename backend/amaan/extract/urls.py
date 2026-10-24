@@ -18,7 +18,7 @@ from __future__ import annotations
 import ipaddress
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 import idna
@@ -84,7 +84,6 @@ class ExtractedUrl:
     is_ip: bool = False
     has_userinfo: bool = False
     port: int | None = None
-    notes: list[str] = field(default_factory=list)
 
 
 @dataclass

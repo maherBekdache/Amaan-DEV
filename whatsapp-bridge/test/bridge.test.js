@@ -44,7 +44,7 @@ test("chat selection is saved and survives a restart", () => {
   c.upsert("111@s.whatsapp.net", "Mom");
   c.upsert("g1@g.us", "Family", true);
   c.upsert("status@broadcast", "Status"); // ignored
-  c.select(["g1@g.us", "status@broadcast"]);
+  c.setPolicy({ mode: "manual", include: ["g1@g.us", "status@broadcast"] });
   assert.deepEqual(c.list().map((x) => [x.name, x.selected]), [["Family", true], ["Mom", false]]);
   assert.deepEqual([...new Chats(dir).include], ["g1@g.us"]);
   assert.equal(c.nameOf(["555@s.whatsapp.net"]), "+555");
@@ -72,7 +72,7 @@ test("HTTP API: status, chats and selection", async () => {
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     assert.equal((await (await fetch(`${base}/status`)).json()).state, "connected");
-    const put = await fetch(`${base}/selection`, { method: "PUT", body: JSON.stringify({ chat_ids: ["1@s.whatsapp.net"] }) });
+    const put = await fetch(`${base}/selection`, { method: "PUT", body: JSON.stringify({ mode: "manual", include: ["1@s.whatsapp.net"] }) });
     assert.equal((await put.json()).selected, 1);
     assert.equal((await (await fetch(`${base}/chats`)).json()).chats[0].selected, true);
     assert.equal((await fetch(`${base}/nope`)).status, 404);
@@ -88,7 +88,7 @@ test("chat list survives a restart and merges privacy ids with phone ids", () =>
   c.upsert("999@lid", null); // first seen only by privacy id
   c.upsertContact({ id: "96170111222@s.whatsapp.net", name: "Taha", lid: "999@lid" });
   c.upsertWeak("96170111222@s.whatsapp.net", "T-bone"); // sender's own name never overrides the contact name
-  c.select(["999@lid"]); // selecting either id selects the person
+  c.setPolicy({ mode: "manual", include: ["999@lid"] }); // selecting either id selects the person
   c.flush();
   const again = new Chats(dir);
   assert.deepEqual(again.list().map((x) => [x.id, x.name, x.selected]), [["96170111222@s.whatsapp.net", "Taha", true]]);

@@ -2,8 +2,7 @@
 import { textCueSignals } from "./cues";
 import { classifyPayload } from "./payloads";
 import { payloadSignals, textFlagSignals, urlSignals } from "./rules";
-import type { Item, Result, RiskLevel, Severity, Signal } from "./types";
-import { sig } from "./types";
+import { sig, type Item, type Result, type RiskLevel, type Severity, type Signal } from "./types";
 import { defang, extractUrls, parseCandidate, type ExtractedUrl } from "./urls";
 
 const ORDER: Record<RiskLevel, number> = { Low: 0, Medium: 1, High: 2 };

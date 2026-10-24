@@ -148,8 +148,9 @@ def test_status_and_selection_proxy(client):
     client.mock.get(f"{BRIDGE}/status").mock(return_value=httpx.Response(200, json={"state": "connected"}))
     sel = client.mock.put(f"{BRIDGE}/selection").mock(return_value=httpx.Response(200, json={"selected": 1}))
     assert client.get("/whatsapp/status").json()["state"] == "connected"
-    assert client.put("/whatsapp/selection", json={"chat_ids": ["1@s.whatsapp.net"]}).json() == {"selected": 1}
-    assert sel.calls.last.request.content == b'{"chat_ids":["1@s.whatsapp.net"]}'
+    body = {"mode": "manual", "include": ["1@s.whatsapp.net"], "exclude": []}
+    assert client.put("/whatsapp/selection", json=body).json() == {"selected": 1}
+    assert sel.calls.last.request.content == b'{"mode":"manual","include":["1@s.whatsapp.net"],"exclude":[]}'
 
 
 def test_ingest_requires_token(client):

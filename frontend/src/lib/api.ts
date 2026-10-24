@@ -1,7 +1,6 @@
-import type { AIOpinion, Evidence, Health, ImportReport, WaAlert, WaChat, WaPolicy, WaStatus } from "../types";
+import type { AIOpinion, Evidence, Health, ImportReport, Pairing, WaAlert, WaChat, WaPolicy, WaStatus } from "../types";
 
-// Same-origin by default. An Electron build can point this at the local backend.
-const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
+// Same origin only: the backend serves this app (CSP connect-src 'self').
 
 export class ApiError extends Error {}
 
@@ -17,43 +16,33 @@ async function handle<T>(res: Response): Promise<T> {
   throw new ApiError(detail);
 }
 
-export async function analyzeText(input: { text: string; html?: string; uri_list?: string }): Promise<Evidence> {
-  const res = await fetch(`${BASE}/analyze/text`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-    credentials: "omit",
-  }).catch(() => {
-    throw new ApiError("Amaan's backend is not running.");
-  });
-  return handle<Evidence>(res);
-}
-
-export async function analyzeImage(file: Blob, source: "image" | "camera", name = "upload.png"): Promise<Evidence> {
-  const form = new FormData();
-  form.append("file", file, name);
-  form.append("source", source);
-  const res = await fetch(`${BASE}/analyze/image`, { method: "POST", body: form, credentials: "omit" }).catch(() => {
-    throw new ApiError("Amaan's backend is not running.");
-  });
-  return handle<Evidence>(res);
-}
-
-export async function getHealth(): Promise<Health | null> {
-  try {
-    const res = await fetch(`${BASE}/health`, { credentials: "omit" });
-    return res.ok ? ((await res.json()) as Health) : null;
-  } catch {
-    return null;
-  }
-}
-
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { credentials: "omit", ...init }).catch(() => {
+  const res = await fetch(path, { credentials: "omit", ...init }).catch(() => {
     throw new ApiError("Amaan's backend is not running.");
   });
   return handle<T>(res);
 }
+
+const json = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+export function analyzeText(input: { text: string; html?: string; uri_list?: string }): Promise<Evidence> {
+  return call<Evidence>("/analyze/text", json("POST", input));
+}
+
+export function analyzeImage(file: Blob, source: "image" | "camera", name = "upload.png"): Promise<Evidence> {
+  const form = new FormData();
+  form.append("file", file, name);
+  form.append("source", source);
+  return call<Evidence>("/analyze/image", { method: "POST", body: form });
+}
+
+export const getHealth = (): Promise<Health | null> => call<Health>("/health").catch(() => null);
+
+export const getPairing = (): Promise<Pairing> => call<Pairing>("/phone/pairing");
 
 export function importChat(file: File): Promise<ImportReport> {
   const form = new FormData();
@@ -66,26 +55,12 @@ export const wa = {
   link: () => call<WaStatus>("/whatsapp/link", { method: "POST" }),
   logout: () => call<WaStatus>("/whatsapp/logout", { method: "POST" }),
   chats: () => call<{ chats: WaChat[] } & WaPolicy>("/whatsapp/chats"),
-  setPolicy: (policy: WaPolicy) =>
-    call<{ selected: number } & WaPolicy>("/whatsapp/selection", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(policy),
-    }),
-  addNumber: (number: string) =>
-    call<{ id: string; selected: number }>("/whatsapp/chats", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ number }),
-    }),
+  setPolicy: (policy: WaPolicy) => call<{ selected: number } & WaPolicy>("/whatsapp/selection", json("PUT", policy)),
+  addNumber: (number: string) => call<{ id: string; selected: number }>("/whatsapp/chats", json("POST", { number })),
   alerts: () => call<WaAlert[]>("/whatsapp/alerts"),
   clearAlerts: () => call<{ cleared: boolean }>("/whatsapp/alerts", { method: "DELETE" }),
 };
 
 export function explain(evidence: Evidence, text?: string): Promise<AIOpinion> {
-  return call<AIOpinion>("/ai/explain", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ evidence, text, open_page: true }),
-  });
+  return call<AIOpinion>("/ai/explain", json("POST", { evidence, text, open_page: true }));
 }

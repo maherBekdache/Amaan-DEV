@@ -22,7 +22,7 @@ import httpx
 from fastapi import APIRouter, File, Form, Header, HTTPException, Request, UploadFile
 from starlette.concurrency import run_in_threadpool
 
-from amaan.analyzer import Analyzer, LinkBudget, _key
+from amaan.analyzer import Analyzer, LinkBudget, link_key
 from amaan.config import get_settings
 from amaan.extract.qr import ImageRejected, decode_qr_codes
 from amaan.extract.urls import extract_urls
@@ -46,13 +46,15 @@ _SNIPPET = 400
 # --- chat export import ---------------------------------------------------------
 
 
+_PRIORITY = {Severity.high: 3, Severity.medium: 2, Severity.low: 1}
+
+
 def _local_priority(text: str) -> int:
     """How suspicious a message looks before any network check (for ordering)."""
-    sev = {"high": 3, "medium": 2, "low": 1}
     best = 0
     for u in extract_urls(text, limit=10).urls:
         for s in local_rules.url_signals(u):
-            best = max(best, sev.get(s.severity.value, 0))
+            best = max(best, _PRIORITY.get(s.severity, 0))
     return best + (1 if text_cues.text_cue_signals(text) else 0)
 
 
@@ -68,7 +70,7 @@ async def analyze_export(analyzer: Analyzer, export: ChatExport) -> ImportReport
     seen: set[str] = set()
     for m in ordered:
         for u in extract_urls(m.text, limit=10).urls:
-            k = _key(u.url)
+            k = link_key(u.url)
             if k not in seen:
                 seen.add(k)
                 keys.append((k, u.url))
@@ -107,7 +109,7 @@ async def analyze_export(analyzer: Analyzer, export: ChatExport) -> ImportReport
     if export.skipped_images:
         warnings.append(f"{export.skipped_images} more photos were not scanned (limit {len(export.images)}).")
 
-    findings.sort(key=lambda f: ({"High": 0, "Medium": 1, "Low": 2}[f.evidence.risk_level.value], f.index))
+    findings.sort(key=lambda f: (-aggregate.rank(f.evidence.risk_level), f.index))
     level = aggregate.worst(*(f.evidence.risk_level for f in findings)) if findings else RiskLevel.low
     return ImportReport(
         title=export.title, risk_level=level, messages_total=len(export.messages),
@@ -176,9 +178,7 @@ async def whatsapp_add_chat(body: dict) -> dict:
 
 @router.put("/whatsapp/selection")
 async def whatsapp_selection(body: dict) -> dict:
-    """{mode: "unknown"|"manual", include: [...], exclude: [...]} (or the older {chat_ids})."""
-    if "chat_ids" in body:
-        return await _bridge("PUT", "/selection", json={"chat_ids": list(body.get("chat_ids") or [])})
+    """{mode: "unknown"|"manual", include: [...], exclude: [...]}"""
     payload = {"mode": body.get("mode", "unknown"),
                "include": list(body.get("include") or []), "exclude": list(body.get("exclude") or [])}
     return await _bridge("PUT", "/selection", json=payload)
@@ -245,10 +245,7 @@ async def whatsapp_ingest(
     _stats["checked"] += 1
     if kind in ("call", "video_call"):
         ev = call_evidence(chat_id, video=kind == "video_call")
-        _alerts.append(WhatsAppAlert(
-            id=next(_alert_ids), received_at=datetime.fromtimestamp(timestamp, timezone.utc) if timestamp
-            else datetime.now(timezone.utc), chat_name=chat_name or chat_id, sender=sender, kind=kind, text="", evidence=ev))
-        return {"stored": True, "risk_level": ev.risk_level.value}
+        return _store_alert(ev, timestamp, chat_name or chat_id, sender, kind, "")
 
     evidences: list[Evidence] = []
     try:
@@ -272,11 +269,12 @@ async def whatsapp_ingest(
     flagged = [e for e in evidences if e.risk_level is not RiskLevel.low]
     if not flagged:
         return {"stored": False}
-    ev = max(flagged, key=lambda e: {"High": 2, "Medium": 1, "Low": 0}[e.risk_level.value])
-    _alerts.append(WhatsAppAlert(
-        id=next(_alert_ids),
-        received_at=datetime.fromtimestamp(timestamp, timezone.utc) if timestamp else datetime.now(timezone.utc),
-        chat_name=chat_name or chat_id, sender=sender, kind=kind,
-        text=text[:_SNIPPET], evidence=ev,
-    ))
+    ev = max(flagged, key=lambda e: aggregate.rank(e.risk_level))
+    return _store_alert(ev, timestamp, chat_name or chat_id, sender, kind, text[:_SNIPPET])
+
+
+def _store_alert(ev: Evidence, timestamp: int, chat_name: str, sender: str, kind: str, text: str) -> dict:
+    received = datetime.fromtimestamp(timestamp, timezone.utc) if timestamp else datetime.now(timezone.utc)
+    _alerts.append(WhatsAppAlert(id=next(_alert_ids), received_at=received, chat_name=chat_name, sender=sender,
+                                 kind=kind, text=text, evidence=ev))
     return {"stored": True, "risk_level": ev.risk_level.value}

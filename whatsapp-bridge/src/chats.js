@@ -164,11 +164,6 @@ export class Chats {
     fs.writeFileSync(this.selFile, JSON.stringify(this.policy()));
   }
 
-  /** Older API: tick exactly these chats (manual mode). */
-  select(ids) {
-    this.setPolicy({ mode: "manual", include: ids });
-  }
-
   /** Add a chat by phone number (for chats WhatsApp never told us about). */
   addNumber(number) {
     const digits = String(number ?? "").replace(/[^\d]/g, "").replace(/^00/, "");

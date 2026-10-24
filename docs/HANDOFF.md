@@ -243,7 +243,7 @@ Other standing rules:
    - optional cloud LLM that receives evidence only (needs approval)
 6. **M2 voice notes:** Whisper fine-tuned for Lebanese speech; anti-spoofing and scam-intent stubs; input via the share sheet.
 
-Details: `docs/FUTURE.md`, `docs/DECISIONS.md` (D1–D15), `docs/FEASIBILITY.md`, `docs/LINK_TOOLS_COMPARISON.md`, `docs/TESTING.md`, `docs/DEVELOPMENT.md`, `docs/Amaan_Documentation.docx`.
+Details: `docs/FUTURE.md`, `docs/DECISIONS.md` (D1–D16), `docs/FEASIBILITY.md`, `docs/TESTING.md`, `docs/DEVELOPMENT.md`, `docs/Amaan_Documentation.docx`.
 
 ## 10. How to work on this repo (for an agent)
 - Before changing behavior, check the four hard rules.

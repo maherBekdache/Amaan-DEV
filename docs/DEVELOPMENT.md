@@ -11,7 +11,7 @@ Windows (PowerShell, in the repo folder; first run
 
 | Command | What it does |
 |---|---|
-| `.\scripts\amaan.ps1 test` | all automated tests (backend pytest + frontend type check), ~30 s |
+| `.\scripts\amaan.ps1 test` | backend pytest + web app type check + phone rules (`packages/core`), ~1 min |
 | `.\scripts\amaan.ps1 dev` | live-reload dev servers → http://localhost:5173 (start Docker with `start.bat` once first) |
 | `.\scripts\amaan.ps1 dev -Mock` | same, without Docker: **fake** link verdicts, pink "MOCK" label |
 | `.\scripts\amaan.ps1 up` / `down` / `status` / `logs` | full stack (what `start.bat` / `stop.bat` call) |
@@ -20,16 +20,13 @@ Windows (PowerShell, in the repo folder; first run
 | `cd app; npx expo start` | phone app dev server (Expo Go on the phone, `w` for web) |
 | `cd app; npx tsc --noEmit` | phone app type check |
 | `cd packages\core; npm test` | on-device rules: parity tests against the backend examples |
+| `cd whatsapp-bridge; npm test` | WhatsApp bridge tests |
 
 macOS / Linux / WSL: `./scripts/amaan.sh test | dev [--mock] | up | down | status | logs`.
 
 GitHub runs the same tests on every pull request (`.github/workflows/ci.yml`).
 
-## No Docker? Use GitHub Codespaces (in the browser)
-Repo page → **Code** → **Codespaces** → **Create codespace on main** (4-core).
-In its terminal: `./scripts/amaan.sh up`, then **Ports** tab → 8000 → 🌐.
-Keep the port *Private*, use only the built-in examples (it runs on GitHub's
-servers), and stop the codespace when done.
+No Docker? `dev -Mock` runs everything except the link sandbox (fake, clearly labelled verdicts).
 
 ## Manual test checklist (before a demo or a big merge)
 Full step-by-step guide for every feature: [TESTING.md](TESTING.md). Short version:
@@ -41,21 +38,23 @@ Full step-by-step guide for every feature: [TESTING.md](TESTING.md). Short versi
 
 ## Project layout
 ```
-backend/amaan/       FastAPI app
+backend/amaan/       FastAPI app (main.py: routes + request guard; analyzer.py: one analysis)
   extract/           find links in text, decode QR codes, parse dropped HTML (all offline)
-  clients/urlvet.py  talks to the URL.vet sandbox
   scoring/           local rules, Arabic/Arabizi scam phrases, final verdict + reasons
-  data/brands.json   official domains (each entry must be checked by a teammate)
+  reputation/        OpenPhish/URLhaus lists, Safe Browsing, VirusTotal, urlscan.io
+  clients/           URL.vet sandbox and Lookyloo
+  ai/                local AI second opinion (Ollama)
+  api/whatsapp.py, importers/   WhatsApp: chat-export import, alerts, bridge proxy
+  data/              brands.json (official domains, each checked by a teammate), cues.json, lookups.json
 backend/tests/       pytest suite (incl. every built-in example)
-backend/amaan/api/whatsapp.py, importers/   WhatsApp: chat-export import, alerts, bridge proxy
-backend/devtools/    fake URL.vet for --mock
-whatsapp-bridge/     optional Node service (Baileys) for live WhatsApp; tests: cd whatsapp-bridge; npm test
-frontend/src/        React UI (App.tsx, components/)
-app/                 phone app (Expo): App.tsx screens, src/check.ts (hybrid flow), src/server.ts (pairing)
-samples/             fake WhatsApp chat exports for testing
-packages/core/       on-device analysis shared by the apps (TypeScript port of backend/amaan, parity-tested)
+backend/devtools/    fake URL.vet for -Mock
+frontend/src/        web app (App.tsx, components/, lib/api.ts)
 frontend/src/examples.json + public/examples/   built-in examples (regenerate: scripts/make_examples.py)
-infra/urlvet/        config for URL.vet (its code is cloned, unmodified, into third_party/)
+app/                 phone app (Expo): App.tsx screens, src/check.ts (hybrid flow), src/server.ts (pairing)
+packages/core/       on-device analysis shared by the apps (TypeScript port of backend/amaan, parity-tested)
+whatsapp-bridge/     optional Node service (Baileys) for live WhatsApp
+samples/             fake WhatsApp chat exports for testing
+infra/               config for URL.vet and Lookyloo (their code is cloned, unmodified, into third_party/)
 scripts/             amaan.ps1 / amaan.sh
 ```
 
@@ -75,9 +74,8 @@ and `warnings[]`. Every signal has a `label`: `automated_indicator`,
 `community_report` or `verified`.
 
 ## Settings (environment variables)
-`AMAAN_URLVET_BASE_URL` (default `http://localhost:8080`),
-`AMAAN_MAX_URLS_PER_REQUEST` (10), `AMAAN_MAX_UPLOAD_BYTES` (10 MB),
-`AMAAN_ALLOWED_HOSTS` (comma-separated; Codespaces sets it).
+Every setting is an `AMAAN_*` variable; the full list with defaults is `backend/amaan/config.py`.
+API keys go in `.env` (template: `.env.example`).
 
 ## Troubleshooting
 | Problem | Fix |

@@ -13,7 +13,7 @@ services:
       - "127.0.0.1:8000:8000"   # loopback only: not reachable from the network
     environment:
       AMAAN_URLVET_BASE_URL: http://urlvet-backend:8080
-      # Set by .devcontainer for GitHub Codespaces; empty = localhost only.
+      # Extra Host-header names to accept (comma-separated); empty = localhost only.
       AMAAN_ALLOWED_HOSTS: ${AMAAN_ALLOWED_HOSTS:-}
       # WhatsApp bridge (only used when it runs); the token is generated into .env by the scripts.
       AMAAN_WHATSAPP_BRIDGE_URL: http://whatsapp-bridge:8090

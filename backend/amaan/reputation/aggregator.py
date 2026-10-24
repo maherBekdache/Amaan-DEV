@@ -32,9 +32,9 @@ class Reputation:
             return hit
         try:
             res = await asyncio.wait_for(coro, timeout=self.s.sources_timeout_s)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             res = SourceResult(source=name, kind="other", status=SourceStatus.timeout, detail="No answer in time.")
-        if res.status in (SourceStatus.ok,):
+        if res.status is SourceStatus.ok:
             self.cache.put(key, res)
         return res
 

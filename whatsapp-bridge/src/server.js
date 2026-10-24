@@ -1,6 +1,8 @@
 // Small HTTP API used only by the Amaan backend (not exposed outside Docker).
 import http from "node:http";
 
+const httpError = (status, message) => Object.assign(new Error(message), { status });
+
 export function makeServer(wa, chats) {
   const routes = {
     "GET /status": () => wa.status(),
@@ -15,11 +17,9 @@ export function makeServer(wa, chats) {
     "GET /chats": () => ({ chats: chats.list(), ...chats.policy() }),
     "POST /chats": (body) => ({ id: chats.addNumber(body?.number), selected: chats.watchedCount() }),
     "PUT /selection": (body) => {
-      if (Array.isArray(body?.chat_ids)) chats.select(body.chat_ids); // older clients
-      else if (body && (body.mode === "unknown" || body.mode === "manual")) {
-        if (![body.include ?? [], body.exclude ?? []].every(Array.isArray)) throw Object.assign(new Error("include/exclude must be lists"), { status: 400 });
-        chats.setPolicy(body);
-      } else throw Object.assign(new Error("send {mode, include, exclude}"), { status: 400 });
+      if (body?.mode !== "unknown" && body?.mode !== "manual") throw httpError(400, "send {mode, include, exclude}");
+      if (![body.include ?? [], body.exclude ?? []].every(Array.isArray)) throw httpError(400, "include/exclude must be lists");
+      chats.setPolicy(body);
       return { selected: chats.watchedCount(), ...chats.policy() };
     },
   };
@@ -27,13 +27,13 @@ export function makeServer(wa, chats) {
   return http.createServer(async (req, res) => {
     const handler = routes[`${req.method} ${req.url?.split("?")[0]}`];
     try {
-      if (!handler) throw Object.assign(new Error("not found"), { status: 404 });
+      if (!handler) throw httpError(404, "not found");
       let body = null;
       if (req.method === "PUT" || req.method === "POST") {
         let raw = "";
         for await (const chunk of req) {
           raw += chunk;
-          if (raw.length > 1_000_000) throw Object.assign(new Error("too large"), { status: 413 });
+          if (raw.length > 1_000_000) throw httpError(413, "too large");
         }
         body = raw ? JSON.parse(raw) : null;
       }

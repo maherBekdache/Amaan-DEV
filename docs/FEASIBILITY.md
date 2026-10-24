@@ -24,12 +24,13 @@ any cloud.
    chat, any phone, and is the safest thing to show in the demo.
 2. **(a) Baileys: built as an opt-in "live" mode** (`start-whatsapp.bat`),
    for a **test number only**:
-   - The user links it like WhatsApp Web and **ticks the chats** to watch. Other
-     chats are never read (filtered inside the bridge, before anything leaves it).
+   - The user links it like WhatsApp Web. By default it watches **numbers not saved in
+     the phone's contacts** (and unknown callers); the user can tick or untick any chat.
+     Other chats are never read (filtered inside the bridge, before anything leaves it).
    - Only **new incoming** messages are checked (not history, not the user's own).
    - It **never sends anything**: no replies, no read receipts, never shows "online".
-   - It **never stores messages**: on disk only the login session and the list of
-     selected chat ids. Flagged results are kept in RAM (last 50) for the screen.
+   - It **never stores messages**: on disk only the login session, the chat list (ids and
+     names) and the selection. Flagged results are kept in RAM (last 50) for the screen.
    - Voice notes are detected but not analyzed until Milestone 2's pipeline exists.
    - Chosen over (b) because it needs no browser, is lighter, and has the same
      coverage and the same ban risk.
@@ -40,7 +41,7 @@ any cloud.
 ## How it's wired
 ```
 Phone (test number) ──linked device──▶ whatsapp-bridge (Node, Baileys, Docker, no host port)
-                                         │ only selected chats, new messages
+                                         │ only watched chats, new messages
                                          ▼ POST /whatsapp/ingest (shared secret)
                                        Amaan backend ──▶ same checks as the main screen ──▶ alerts in the UI
 ```

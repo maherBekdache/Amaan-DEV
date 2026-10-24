@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { Evidence, EvidenceLabel, RiskLevel, Severity, Signal } from "../types";
+import type { Evidence, RiskLevel, Severity, Signal } from "../types";
 import AIOpinionCard from "./AIOpinionCard";
+import { LabelChip, SEVERITY_DOT } from "./badges";
 import { ItemCard, Lookups } from "./ItemDetails";
 
 // Plain-language result: verdict, what to do, why (with evidence labels),
@@ -30,20 +31,7 @@ const LOOK: Record<RiskLevel, { icon: string; title: string; advice: string; box
   },
 };
 
-const LABEL: Record<EvidenceLabel, [string, string]> = {
-  automated_indicator: ["Automated check", "bg-slate-200 text-slate-700"],
-  community_report: ["Reported by others", "bg-purple-200 text-purple-900"],
-  verified: ["Verified", "bg-emerald-200 text-emerald-900"],
-};
 const ORDER: Severity[] = ["high", "medium", "low", "good", "info"];
-const DOT: Record<Severity, string> = {
-  high: "bg-red-500", medium: "bg-amber-500", low: "bg-yellow-400", good: "bg-emerald-500", info: "bg-sky-400",
-};
-
-export function LabelChip({ label }: { label: EvidenceLabel }) {
-  const [text, cls] = LABEL[label];
-  return <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>{text}</span>;
-}
 
 function topReasons(ev: Evidence): Signal[] {
   const all = [...ev.signals, ...ev.items.flatMap((i) => i.signals)];
@@ -104,7 +92,7 @@ export default function Verdict({ ev, checked, aiAuto = false }: { ev: Evidence;
           <ul className="space-y-2.5">
             {reasons.map((s, i) => (
               <li key={i} className="flex gap-3">
-                <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${DOT[s.severity]}`} />
+                <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${SEVERITY_DOT[s.severity]}`} />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{s.title}</span>

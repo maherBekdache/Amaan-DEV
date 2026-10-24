@@ -15,12 +15,12 @@ How it decides:
 
 from __future__ import annotations
 
-import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable
 
+from amaan.data import load
+from amaan.extract.urls import extract_urls
 from amaan.schemas import EvidenceLabel, Severity, Signal
 
 _AR_DIACRITICS = re.compile(r"[ً-ٰٟـ]")
@@ -84,7 +84,7 @@ class Cue:
     patterns: tuple[str, ...]
 
 
-_DATA = json.loads((Path(__file__).resolve().parent.parent / "data" / "cues.json").read_text(encoding="utf-8"))
+_DATA = load("cues.json")
 CUES: tuple[Cue, ...] = tuple(Cue(c["id"], c["title"], c["why"], c["weight"], tuple(c["patterns"])) for c in _DATA["cues"])
 
 # Patterns go through the same Arabic normalization as the messages (على -> علي, ...).
@@ -113,8 +113,6 @@ def text_cue_signals(text: str, has_link: bool | None = None) -> list[Signal]:
         return []
 
     if has_link is None:
-        from amaan.extract.urls import extract_urls
-
         has_link = bool(extract_urls(text, limit=1).urls)
     score = sum(c.weight for c, _ in hits) + (1 if has_link else 0)
 

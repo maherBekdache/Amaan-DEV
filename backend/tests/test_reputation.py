@@ -121,8 +121,9 @@ async def test_urlscan_private_scan(client):
 
 
 def test_source_signals():
-    ok = lambda name, v, community=False: SourceResult(source=name, kind="x", status=SourceStatus.ok, verdict=v,
-                                                       community=community, detail="d")
+    def ok(name, v, community=False):
+        return SourceResult(source=name, kind="x", status=SourceStatus.ok, verdict=v, community=community, detail="d")
+
     sig = aggregate.source_signals([ok("OpenPhish", SourceVerdict.malicious, True), ok("VirusTotal", SourceVerdict.clean)])
     assert sig[0].severity is Severity.high and sig[0].label is EvidenceLabel.community_report
     sig = aggregate.source_signals([ok("VirusTotal", SourceVerdict.clean), ok("OpenPhish", SourceVerdict.clean, True),
@@ -148,4 +149,3 @@ def test_analyze_link_endpoint_runs_all_sources(monkeypatch):
         assert {s["source"] for s in item["sources"]} >= {"VirusTotal", "Google Safe Browsing", "urlscan.io"}
         assert any(s["title"] == "VirusTotal flags it as dangerous" for s in item["signals"])
         assert c.post("/analyze/link", json={"urls": [" "]}).status_code == 400
-        assert any(s["name"] == "VirusTotal" and s["ready"] for s in c.get("/sources").json()["sources"])

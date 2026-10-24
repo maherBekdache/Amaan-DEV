@@ -13,7 +13,7 @@
   .\scripts\amaan.ps1 update-urlvet # move URL.vet to the pinned ref again
   .\scripts\amaan.ps1 dev           # hot-reload dev: backend :8000 + frontend :5173 (URL.vet from Docker)
   .\scripts\amaan.ps1 dev -Mock     # same, with a FAKE URL.vet (no Docker needed; never for the demo)
-  .\scripts\amaan.ps1 test          # backend tests + frontend type check
+  .\scripts\amaan.ps1 test          # backend tests + frontend type check + phone rules (packages/core)
 #>
 param(
   [Parameter(Position = 0)]
@@ -116,7 +116,7 @@ function Enable-Phone {
   Set-EnvLine "AMAAN_PHONE_URL" "http://${ip}:8001"
   $rootEnv = Join-Path $Root ".env"
   if (-not (Select-String -Path $rootEnv -Pattern "^AMAAN_PHONE_TOKEN=." -Quiet)) { Set-EnvLine "AMAAN_PHONE_TOKEN" (New-Secret) }
-  Write-Host "==> Phone gateway on http://${ip}:8001 (pair from Amaan: WhatsApp tab -> Connect phone)" -ForegroundColor Cyan
+  Write-Host "==> Phone gateway on http://${ip}:8001 (pair from Amaan: Phone app tab)" -ForegroundColor Cyan
 }
 
 function Invoke-Setup {

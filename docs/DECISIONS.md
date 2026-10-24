@@ -36,9 +36,9 @@ What never leaves the machine: message text, images, QR images, audio,
 history. Only the **link itself** goes to those services, and only after the
 user asks for it to be checked.
 
-Kept **off**: Google Safe Browsing / Web Risk, URLhaus and OpenPhish
-(opt-in in URL.vet; enabling any of them needs team approval). URL.vet log
-files are disabled (`LOG_DIR` empty).
+Kept **off inside URL.vet**: its opt-in Google Safe Browsing / Web Risk, URLhaus
+and OpenPhish feeds. Amaan checks those sources itself instead (D11). URL.vet
+log files are disabled (`LOG_DIR` empty).
 
 ## D3. Short links are never expanded by our code
 *Approved by the team, Oct 2026 ("most secure and practical").*
@@ -57,7 +57,6 @@ system proxy settings.
   access works because `localhost` counts as a secure context.
 - The Vite dev server (`:5173`) proxies to the backend and is the only extra
   CORS origin.
-- Electron later: the build uses relative asset paths and `VITE_API_BASE`.
 
 ## D5. History is stored only in the browser, without content
 *Approved by the team, Oct 2026.*
@@ -201,7 +200,14 @@ nothing is sent until the user clicks one, which opens that site in their browse
 and shares **the link only** with it (said on screen; no referrer). The suspicious
 link itself is still never opened.
 
+## D16. Third-party licences
+- **URL.vet (AGPL-3.0):** never copied, linked or modified; cloned into the git-ignored
+  `third_party/` and used over HTTP only. If we ever modify it and expose it over a
+  network, those modifications must be published.
+- **Lookyloo (BSD-3):** unmodified; keep its copyright notice if we redistribute it.
+- **Baileys (MIT):** a normal npm dependency of `whatsapp-bridge/`.
+- **PhishIntention (CC0 code, weights' licence unstated):** not used yet; see FUTURE.md §3.
+
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`.
-- [ ] Decide on Lookyloo "deep inspect" (see `LINK_TOOLS_COMPARISON.md`).
 - [ ] Decide whether a PhishIntention spike fits the ML part of the report.

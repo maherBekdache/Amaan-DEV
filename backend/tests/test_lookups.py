@@ -1,5 +1,5 @@
 from amaan.lookups import lookup_links
-from tests.test_api import client, urlvet_returns  # noqa: F401 (fixture)
+from tests.conftest import urlvet_returns
 
 
 def test_lookup_addresses_are_encoded():

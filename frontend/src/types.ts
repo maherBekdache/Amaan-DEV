@@ -89,6 +89,14 @@ export interface Health {
   lookyloo?: { enabled: boolean; reachable: boolean };
 }
 
+export interface Pairing {
+  enabled: boolean;
+  server?: string;
+  token?: string;
+  pair_uri?: string;
+  message?: string;
+}
+
 export interface AIOpinion {
   available: boolean;
   provider: string;

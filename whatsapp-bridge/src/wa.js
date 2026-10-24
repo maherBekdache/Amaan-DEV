@@ -36,6 +36,9 @@ export class WhatsApp {
     this.error = null;
     this.checked = 0;
     this.retries = 0;
+    this.connecting = null; // the pending connect() promise
+    this.watchdog = null;
+    this.retryTimer = null;
   }
 
   status() {
