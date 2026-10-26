@@ -193,6 +193,9 @@ Other standing rules:
 | Bridge | 19 (`node --test`) |
 | App | typecheck + web/iOS/Android bundle export |
 
+**Funding (approved Oct 2026):** \$200 for RunPod GPU time (speech benchmark and first fine-tuning) and ElevenLabs
+(cloned voices from consenting speakers only), covering November to mid-December 2026. GPU time after that: AUB lab or a new request.
+
 ## 7. Known pitfalls (learned the hard way)
 - **PowerShell 5.1:** native stderr plus `$ErrorActionPreference='Stop'` aborts. Use the `Invoke-Checked` / `Test-Native` helpers in `amaan.ps1`.
 - **CRLF:** Git for Windows broke Lookyloo's shebangs. Third-party repos are cloned with `core.autocrlf=false` (`Get-Pinned` / `get_pinned`, auto-repair).
