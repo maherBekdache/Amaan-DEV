@@ -14,7 +14,7 @@ built-in examples (or links copied as text from PhishTank).
 | [Git](https://git-scm.com/download/win), [Docker Desktop](https://www.docker.com/products/docker-desktop/) | everything |
 | [Node.js 22 LTS](https://nodejs.org/) | phone / desktop app, `amaan.ps1 test` |
 | [Python 3.11](https://www.python.org/downloads/release/python-3119/) | `amaan.ps1 test` only |
-| [Ollama](https://ollama.com/download), then `ollama pull qwen2.5:3b` | AI second opinion |
+| [Ollama](https://ollama.com/download), then `ollama pull qwen2.5:3b` | AI summary |
 | **Expo Go** on the phone (App Store / Play Store) | phone app |
 | Free API keys in `.env` (copy `.env.example`) | Safe Browsing, VirusTotal, urlscan.io, URLhaus rows |
 
@@ -53,8 +53,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 - [ ] 3.4 Under **Why?**, **Check it yourself on other sites** lists 12 sites. Click **VirusTotal ↗** and **Google Safe Browsing ↗** → each opens its rating of that link in a new tab. Amaan's own result doesn't change.
 
-## 4. AI second opinion + Lookyloo
-- [ ] 4.1 With Ollama running, a result shows an **AI second opinion** card (automatic, or **Ask the AI**). It never replaces the verdict above it.
+## 4. AI summary + Lookyloo
+- [ ] 4.1 With Ollama running, a result shows an **AI summary** card (automatic, or **Explain with AI**): what the message is, what the sources found, what to do. It never replaces the verdict above it.
 - [ ] 4.2 Lookyloo is up: http://127.0.0.1:5100 opens its page (only on this computer).
 - [ ] 4.3 For a link result the AI card says **Page opened in Lookyloo's sandbox.** (can take up to a minute). If Lookyloo is off, the card still works and says why the page wasn't opened.
 - [ ] 4.4 Quit Ollama (tray icon) → the card says **Local AI is off…**; the normal verdict still works.
@@ -70,6 +70,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 - [ ] 5.5 From a number **not saved** in the test phone, send the Arabizi scam text from `samples\…txt` → it appears under **Suspicious messages** within seconds.
 - [ ] 5.6 Same text from a **saved contact** → nothing appears (unless you tick that chat).
 - [ ] 5.7 Call the test number from an unknown number → a **call** alert (foreign number = *Be careful*).
+- [ ] 5.7b From an unknown **foreign** number, call and hang up after one ring → the alert turns into **One ring and hang up** (High).
+- [ ] 5.7c Send a voice note from an unknown number → alert **Voice note … (not checked)**; with `AMAAN_STT_URL` set, the transcript is checked like a message.
 - [ ] 5.8 `stop.bat` then `start-whatsapp.bat` → reconnects by itself, chat list still there.
 - [ ] 5.9 **Unlink** removes "Amaan" from the phone's Linked devices.
 
@@ -83,6 +85,7 @@ http://localhost:8000 → **📱 Phone app**.
 - [ ] 6.3 **📷 Scan QR** at a QR on the computer screen (the examples) → same results as the web app; the QR's link is never opened.
 - [ ] 6.3b Under **What we found**, tap **▸ Check it yourself on other sites** → tap a site → it opens in the phone's browser.
 - [ ] 6.4 **🖼️ Screenshot**: pick a screenshot of a QR code → result.
+- [ ] 6.4b With Ollama on the computer: under a result tap **Explain with AI** → a plain-language summary (the message itself is not sent).
 - [ ] 6.5 Turn the computer's Amaan off (`stop.bat`) → checks still work, links say *Not checked online* and are never "No warning signs".
 - [ ] 6.6 **WhatsApp** tab → **Pick exported chat** → choose the sample `.zip` (AirDrop / Files) or a real export saved to Files → same findings as 5.1, photo QR included.
 - [ ] 6.7 With 5.3 running: **Live alerts from your computer** shows the alerts from 5.5 / 5.7 (refreshes every 15 s while the screen is open).

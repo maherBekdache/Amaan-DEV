@@ -36,14 +36,16 @@ your own text, drop a screenshot, or click **Scan a QR with the camera**.
 - **Check a whole chat:** export it from WhatsApp (chat → ⋮ → More → Export chat) and upload the file. No login needed.
 - **Watch chats live** (optional, test number only): start with **`start-whatsapp.bat`**, click *Link WhatsApp*,
   scan the QR with the phone (Linked devices). By default Amaan watches **numbers that aren't in your contacts** and
-  unknown callers; family and friends stay private unless you tick them. Suspicious messages and calls appear automatically.
+  unknown callers; family and friends stay private unless you tick them. Suspicious messages, voice notes and calls
+  appear automatically, including a warning for "one ring and hang up" calls from foreign numbers.
   Details and risks: [docs/FEASIBILITY.md](docs/FEASIBILITY.md).
 
 **Extra checks (optional):**
 - **Security sources** (Google Safe Browsing, VirusTotal, urlscan.io, URLhaus): copy
   `.env.example` to `.env` and paste your free keys, then restart. Without keys those rows show "Not set up".
-- **AI second opinion** (runs on your computer): install [Ollama](https://ollama.com/download), then in
-  PowerShell run `ollama pull qwen2.5:3b` once. Amaan finds it automatically.
+- **AI summary** (explains the result in plain words; runs on your computer): install
+  [Ollama](https://ollama.com/download), then in PowerShell run `ollama pull qwen2.5:3b` once.
+  Amaan finds it automatically. A stronger model on another server: see `.env.example`.
 - **Lookyloo** (opens links in a sandbox for the AI): start with **`start-everything.bat`** instead
   (first time 10-20 minutes).
 
@@ -79,10 +81,12 @@ Demo video plan: [docs/DEMO.md](docs/DEMO.md) · Future directions: [docs/FUTURE
 - How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Developer guide (tests, dev mode, API, project layout): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 - Design and privacy decisions: [docs/DECISIONS.md](docs/DECISIONS.md)
+- What a phone app may access on Android and iOS: [docs/MOBILE_PERMISSIONS.md](docs/MOBILE_PERMISSIONS.md)
 
 | Milestone | | |
 |---|---|---|
 | 1 | Links + QR codes (text, drop, upload, webcam) | ✅ |
 | 2 | Lebanese voice-note transcription | next |
 | 3 | WhatsApp: chat-export import + live watching of selected chats | ✅ |
-| + | Phone app (iOS / Android / web / desktop), multi-source link check, AI second opinion | ✅ |
+| + | Phone app (iOS / Android / web / desktop), multi-source link check, AI summary | ✅ |
+| + | WhatsApp calls (unknown callers, one-ring warning) and voice notes (with a local speech-to-text server) | ✅ |

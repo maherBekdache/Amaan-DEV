@@ -16,7 +16,8 @@ test("extracts text, captions, images and voice notes", () => {
   assert.deepEqual(extractContent({ extendedTextMessage: { text: "link" } }), { kind: "text", text: "link" });
   assert.deepEqual(extractContent({ imageMessage: { caption: "scan me", fileLength: 1000 } }),
     { kind: "image", text: "scan me", imageBytes: 1000 });
-  assert.deepEqual(extractContent({ audioMessage: {} }), { kind: "voice", text: "" });
+  assert.deepEqual(extractContent({ audioMessage: { fileLength: 5000, seconds: 7, ptt: true } }),
+    { kind: "voice", text: "", audioBytes: 5000, seconds: 7 });
   assert.equal(extractContent({ stickerMessage: {} }), null);
   assert.equal(extractContent({ reactionMessage: { text: "👍" } }), null);
 });
@@ -62,6 +63,12 @@ test("forwarder sends text and image with the bridge token", async () => {
   assert.equal(call.init.body.get("kind"), "image");
   assert.equal(call.init.body.get("text"), "cap");
   assert.ok(call.init.body.get("file"));
+  await forward({ chatId: "1@s", kind: "voice" }, Buffer.from("ogg"));
+  assert.equal(call.init.body.get("file").type, "audio/ogg");
+  await forward({ chatId: "1@s", kind: "missed_call", callId: "c9", ringSeconds: 2 }, null);
+  assert.equal(call.init.body.get("call_id"), "c9");
+  assert.equal(call.init.body.get("ring_seconds"), "2");
+  assert.equal(call.init.body.get("file"), null);
 });
 
 test("HTTP API: status, chats and selection", async () => {

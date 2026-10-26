@@ -3,8 +3,10 @@
 // It only opens other sites' rating pages (VirusTotal, …) when the user taps one.
 import { ADVICE, lookupLinks, topReasons, type EvidenceLabel, type Item, type RiskLevel, type Severity } from "@amaan/core";
 import { useState, type ReactNode } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { explainResult } from "./ai";
 import type { Checked } from "./check";
+import type { AIOpinion, Pairing } from "./server";
 
 export const C = {
   ink: "#0f172a", muted: "#64748b", line: "#e2e8f0", bg: "#f8fafc", card: "#ffffff", brand: "#0f172a",
@@ -39,7 +41,7 @@ export function Chip({ label }: { label: EvidenceLabel }) {
   return <Text style={[s.chip, { backgroundColor: bg, color: fg }]}>{text}</Text>;
 }
 
-export function ResultCard({ r }: { r: Checked }) {
+export function ResultCard({ r, pairing }: { r: Checked; pairing: Pairing | null }) {
   const look = LOOK[r.riskLevel];
   const { title, advice } = ADVICE[r.riskLevel];
   const reasons = topReasons(r);
@@ -68,6 +70,8 @@ export function ResultCard({ r }: { r: Checked }) {
         ))}
       </Card>
 
+      {pairing && <AISummary r={r} pairing={pairing} />}
+
       {r.items.length > 0 && (
         <Card>
           <Text style={s.h2}>What we found</Text>
@@ -82,6 +86,41 @@ export function ResultCard({ r }: { r: Checked }) {
         </Card>
       )}
     </View>
+  );
+}
+
+/** AI summary from the paired computer, on request (it can take up to a minute). */
+function AISummary({ r, pairing }: { r: Checked; pairing: Pairing }) {
+  const [op, setOp] = useState<AIOpinion | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      setOp(await explainResult(pairing, r, r.inputType ?? "text"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Card>
+      <Text style={s.h2}>🤖 AI summary</Text>
+      {!op && !busy && <Button title="Explain with AI" kind="plain" onPress={run} />}
+      {busy && <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}><ActivityIndicator /><Text style={s.muted}>Asking the AI on your computer…</Text></View>}
+      {error && <Text style={s.note}>⚠️ {error}</Text>}
+      {op && !op.available && <Text style={s.muted}>{op.message}</Text>}
+      {op?.available && (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: C.ink, fontSize: 15 }}>{op.summary}</Text>
+          {op.red_flags.map((f) => <Text key={f} style={s.muted}>• {f}</Text>)}
+          {!!op.advice && <Text style={{ color: C.ink, fontWeight: "600" }}>{op.advice}</Text>}
+        </View>
+      )}
+      <Text style={[s.muted, { fontSize: 12 }]}>Sends Amaan's findings to your computer's AI, not your message. An AI can be wrong; the verdict above comes from the evidence.</Text>
+    </Card>
   );
 }
 

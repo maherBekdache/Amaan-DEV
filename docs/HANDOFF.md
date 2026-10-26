@@ -37,7 +37,8 @@ Other standing rules:
 | M1 | Links + QR (text, drop, upload, webcam), URL.vet, explainable verdict | ✅ done |
 | M2 | Lebanese voice-note transcription (Whisper) + anti-spoofing + scam-intent stubs | ❌ not started (owner: "leave model/Whisper/GPU out for now") |
 | M3 | WhatsApp: FEASIBILITY.md, Baileys behind a flag, chat-export import, drag-drop matrix doc | ✅ done (the matrix table in `docs/FEASIBILITY.md` must be filled by hand on Windows) |
-| + | Cross-platform app (Expo), multi-source check, AI second opinion + Lookyloo, WhatsApp defaults (unknown numbers), phone WhatsApp tab, "check it yourself" links, testing guide, Word doc | ✅ done (prototype) |
+| + | Cross-platform app (Expo), multi-source check, AI summary + Lookyloo, WhatsApp defaults (unknown numbers), phone WhatsApp tab, "check it yourself" links, testing guide, Word doc | ✅ done (prototype) |
+| + | WhatsApp calls (unknown caller, one-ring warning), voice notes via a local speech-to-text hook, AI summary on the phone, mobile permissions research | ✅ done (Oct 26) |
 
 ## 4. Architecture
 ```
@@ -131,11 +132,14 @@ Other standing rules:
 - **Check it yourself:** 12 clickable rating sites (web, under *Why?*; phone, under each link).
 
 **AI**
-- Local Ollama second opinion, with Lookyloo's page capture for links.
+- AI summary (what the message is, what each tool found, what to do), with Lookyloo's page capture for links.
+- `AMAAN_AI_PROVIDER=ollama` (local demo) or `openai` (any OpenAI-compatible server). A non-local model gets findings only (D17).
 
 **WhatsApp**
 - Export import (computer and phone).
 - Live watching (unknown numbers and unknown callers by default).
+- Calls: alert when an unknown number calls; one-ring warning when it hangs up within 6 s (D18). No call audio exists for linked devices.
+- Voice notes: checked through `AMAAN_STT_URL` (a local speech-to-text server); otherwise reported as not checked.
 - Alerts on the computer and on the paired phone.
 
 **Phone and desktop app**
@@ -226,8 +230,8 @@ Other standing rules:
    - verify `brands.json`
    - update `docs/DEMO.md` to the 7-minute script (web, WhatsApp live, phone)
 2. **Phone polish (small):**
-   - add `/gateway/ai/explain` so the phone shows the AI opinion
    - per-source table on the phone
+   - serve Taha's Lebanese model behind `/v1/audio/transcriptions` and set `AMAAN_STT_URL`
    - Arabic UI / RTL and screen-reader labels
 3. **Decision needed from the owner: a standalone phone app.** Either a hosted backend (HTTPS, per-device keys, rate limits; rule 2 approval) or on-device lists plus Safe Browsing from the phone. Then EAS builds: Android APK; iOS via TestFlight ($99 Apple account). Standalone builds also need the iOS local-network permission and Android cleartext settings if LAN pairing stays.
 4. **Development build features:**
@@ -243,7 +247,7 @@ Other standing rules:
    - optional cloud LLM that receives evidence only (needs approval)
 6. **M2 voice notes:** Whisper fine-tuned for Lebanese speech; anti-spoofing and scam-intent stubs; input via the share sheet.
 
-Details: `docs/FUTURE.md`, `docs/DECISIONS.md` (D1–D16), `docs/FEASIBILITY.md`, `docs/TESTING.md`, `docs/DEVELOPMENT.md`, `docs/Amaan_Documentation.docx`.
+Details: `docs/MOBILE_PERMISSIONS.md`, `docs/FUTURE.md`, `docs/DECISIONS.md` (D1–D18), `docs/FEASIBILITY.md`, `docs/TESTING.md`, `docs/DEVELOPMENT.md`, `docs/Amaan_Documentation.docx`.
 
 ## 10. How to work on this repo (for an agent)
 - Before changing behavior, check the four hard rules.

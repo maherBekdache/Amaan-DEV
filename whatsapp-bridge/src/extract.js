@@ -22,8 +22,8 @@ export function unwrap(message) {
 }
 
 /**
- * @returns {{kind: "text"|"image"|"voice", text: string, imageBytes?: number} | null}
- *   null when there is nothing to check (stickers, reactions, calls, ...).
+ * @returns {{kind: "text"|"image"|"voice", text: string, imageBytes?: number, audioBytes?: number, seconds?: number} | null}
+ *   null when there is nothing to check (stickers, reactions, ...).
  */
 export function extractContent(message) {
   const m = unwrap(message);
@@ -37,7 +37,9 @@ export function extractContent(message) {
     ""
   ).trim();
   if (m.imageMessage) return { kind: "image", text, imageBytes: Number(m.imageMessage.fileLength ?? 0) };
-  if (m.audioMessage) return { kind: "voice", text: "" };
+  if (m.audioMessage) {
+    return { kind: "voice", text: "", audioBytes: Number(m.audioMessage.fileLength ?? 0), seconds: Number(m.audioMessage.seconds ?? 0) };
+  }
   if (text) return { kind: "text", text };
   return null;
 }

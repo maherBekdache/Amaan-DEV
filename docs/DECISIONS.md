@@ -136,7 +136,7 @@ Reported-by-people lists are labelled *Reported by others*; engine verdicts
 *Automated check*. Hosts where anyone can publish (Google Sites, GitHub
 Pages, …) are never flagged as a whole because of one listed page.
 
-## D12. AI second opinion: local model now, cloud later
+## D12. AI second opinion (now "AI summary", D17): local model now, cloud later
 *Approved by the team, Oct 2026.*
 
 - Local LLM via Ollama (default `qwen2.5:3b`); nothing leaves the computer.
@@ -207,6 +207,30 @@ link itself is still never opened.
 - **Lookyloo (BSD-3):** unmodified; keep its copyright notice if we redistribute it.
 - **Baileys (MIT):** a normal npm dependency of `whatsapp-bridge/`.
 - **PhishIntention (CC0 code, weights' licence unstated):** not used yet; see FUTURE.md §3.
+
+## D17. AI summary: local by default, stronger model through one setting
+*Requested by the team, Meeting 6 (20 Oct 2026).*
+
+- The AI writes a plain-language summary: what the message, link, QR code or call is, what it
+  asks the person to do, and what each security source found. It sits under the evidence-based
+  verdict and never changes it.
+- `AMAAN_AI_PROVIDER=ollama` (default, `qwen2.5:3b`) for the demo; `openai` for any
+  OpenAI-compatible server (LM Studio, vLLM, llama.cpp on the lab GPU, or a cloud model).
+- A model **not on this computer** only receives Amaan's findings (signals, source answers,
+  defanged links), never the message, the page text or matched phrases. Letting it read messages
+  needs `AMAAN_AI_REMOTE_MAY_READ_MESSAGES=1` and the owner's approval (hard rule 2).
+- The phone asks for a summary through `/gateway/ai/explain` with findings only; the server
+  ignores any text the phone might send.
+
+## D18. WhatsApp calls and voice notes
+*Oct 2026. Platform research: MOBILE_PERMISSIONS.md.*
+
+- A linked device sees call **events** (ringing, answered, ended), never call audio. Amaan reports
+  unknown callers when the call starts and, if it ends unanswered after a ring of 6 s or less, replaces
+  that alert with a one-ring ("Wangiri") warning: High for foreign numbers, Medium otherwise.
+- Voice notes from watched chats are sent (in memory) to the backend. If `AMAAN_STT_URL` points to a
+  speech-to-text server **on this computer**, the transcript is checked like a message; any other address
+  is refused. Without it, the alert says the voice note was not checked.
 
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`.

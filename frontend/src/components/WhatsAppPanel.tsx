@@ -127,7 +127,8 @@ function LiveCard() {
       <h2 className="text-lg font-semibold">Watch chats live</h2>
       <p className="mt-1 text-sm text-slate-600">
         Link WhatsApp like WhatsApp Web, then choose which chats Amaan should watch. New links and photos in those
-        chats are checked automatically. Amaan never replies, never marks messages as read and never saves chats.
+        chats are checked automatically, and calls from unknown numbers are reported (WhatsApp does not share call
+        audio with linked devices). Amaan never replies, never marks messages as read and never saves chats.
       </p>
       <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
         ⚠ This uses an unofficial WhatsApp connection. WhatsApp may block numbers that use it. Use a{" "}
@@ -341,6 +342,14 @@ function ChatPicker() {
   );
 }
 
+function alertLine(a: WaAlert): string {
+  if (a.kind === "missed_call") return "📞 Called and hung up: don't call back";
+  if (a.kind === "call" || a.kind === "video_call") return a.kind === "video_call" ? "📹 Video call" : "📞 Called you";
+  if (a.kind === "voice") return a.text ? `🎤 “${a.text}”` : "🎤 Voice note (not transcribed)";
+  if (a.kind === "image") return "📷 Photo with a QR code";
+  return a.text;
+}
+
 function Alerts() {
   const [alerts, setAlerts] = useState<WaAlert[]>([]);
   const [open, setOpen] = useState<number | null>(null);
@@ -371,7 +380,7 @@ function Alerts() {
                 <RiskBadge level={a.evidence.risk_level} />
                 <span dir="auto" className="shrink-0 text-sm font-medium">{a.chat_name}</span>
                 <span dir="auto" className="min-w-0 flex-1 truncate text-sm text-slate-600">
-                  {a.kind === "image" ? "📷 Photo with a QR code" : a.kind.endsWith("call") ? "📞 Called you" : a.text}
+                  {alertLine(a)}
                 </span>
                 <span className="shrink-0 text-xs text-slate-400">{new Date(a.received_at).toLocaleTimeString()}</span>
               </button>

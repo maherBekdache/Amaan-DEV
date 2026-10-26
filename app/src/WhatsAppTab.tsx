@@ -156,15 +156,22 @@ function statusText(st: WaLive["status"]): string {
   return `Watching ${who} · ${st.checked_total ?? 0} messages checked. Updates every 15 s while this screen is open.`;
 }
 
+const CALLS: Record<string, string> = { call: "📞 Call", video_call: "📹 Video call", missed_call: "📞 Called and hung up: don't call back" };
+
+function alertLine(a: WaAlert): string {
+  if (CALLS[a.kind]) return CALLS[a.kind];
+  if (a.kind === "voice") return a.text ? `🎤 ${defangText(a.text)}` : "🎤 Voice note (not transcribed)";
+  return defangText(a.text);
+}
+
 function AlertRow({ a }: { a: WaAlert }) {
   const ev = a.evidence;
   const asResult = { signals: ev.signals, items: ev.items.map((i) => ({ signals: i.signals })) } as unknown as Result;
-  const isCall = a.kind === "call" || a.kind === "video_call";
   return (
     <View style={s.item}>
       <Head level={ev.risk_level} who={a.chat_name || a.sender || "Unknown"}
         when={new Date(a.received_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} />
-      <Text style={s.mono} selectable>{isCall ? (a.kind === "video_call" ? "📹 Video call" : "📞 Call") : defangText(a.text)}</Text>
+      <Text style={s.mono} selectable>{alertLine(a)}</Text>
       <Reasons reasons={topReasons(asResult, 3)} />
     </View>
   );

@@ -31,7 +31,8 @@ any cloud.
    - It **never sends anything**: no replies, no read receipts, never shows "online".
    - It **never stores messages**: on disk only the login session, the chat list (ids and
      names) and the selection. Flagged results are kept in RAM (last 50) for the screen.
-   - Voice notes are detected but not analyzed until Milestone 2's pipeline exists.
+   - Voice notes are passed to a local speech-to-text server when one is set up (DECISIONS D18).
+   - Calls: only ringing/answered/ended events, never audio. Used for unknown-caller and one-ring warnings.
    - Chosen over (b) because it needs no browser, is lighter, and has the same
      coverage and the same ban risk.
 3. **(c) Cloud API: not used.** It cannot see personal chats. It only fits a

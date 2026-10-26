@@ -17,7 +17,7 @@ import makeWASocket, {
 } from "baileys";
 import { chatIdsOf, extractContent, shouldCheck } from "./extract.js";
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_MEDIA_BYTES = 10 * 1024 * 1024; // photos and voice notes larger than this are not downloaded
 const log = pino({ level: process.env.LOG_LEVEL ?? "warn" }); // never "debug": it would print messages
 
 export class WhatsApp {
@@ -36,6 +36,7 @@ export class WhatsApp {
     this.error = null;
     this.checked = 0;
     this.retries = 0;
+    this.calls = new Map(); // call id -> { id, startedAt, video } while it rings
     this.connecting = null; // the pending connect() promise
     this.watchdog = null;
     this.retryTimer = null;
@@ -103,22 +104,9 @@ export class WhatsApp {
     sock.ev.on("contacts.update", (list) => list.forEach((c) => this.chats.upsertContact(c)));
     sock.ev.on("groups.upsert", (list) => list.forEach((g) => this.chats.upsert(g.id, g.subject, true)));
 
-    // Calls: remember who called; an unknown caller is watched and reported.
-    // We never answer or reject the call.
-    sock.ev.on("call", (calls) => {
-      for (const c of calls ?? []) {
-        if (c.status !== "offer" || c.isGroup) continue;
-        if (c.callerPn) this.chats.link(c.callerPn, c.from);
-        const id = this.chats.canonical(c.callerPn ?? c.from);
-        this.chats.recordCall(id);
-        if (this.chats.isWatchedId(id)) {
-          this.checked += 1;
-          this.forward({ chatId: id, chatName: this.chats.nameOf([id]), sender: "", kind: c.isVideo ? "video_call" : "call",
-                         timestamp: (c.date ? new Date(c.date).getTime() : Date.now()) / 1000, text: "" }, null)
-            .catch((e) => log.warn({ err: e.message }, "call report failed"));
-        }
-      }
-    });
+    // Calls: WhatsApp only tells a linked device that a call rings, is answered
+    // or ends (no audio). We never answer or reject the call.
+    sock.ev.on("call", (calls) => (calls ?? []).forEach((c) => this.#onCall(c)));
 
     sock.ev.on("messages.upsert", ({ messages, type }) => {
       for (const msg of messages) {
@@ -134,6 +122,34 @@ export class WhatsApp {
     });
   }
 
+  /** An unknown caller is reported when the call starts, and again when it ends
+   *  unanswered (a short ring from an unknown number is the "Wangiri" trick). */
+  #onCall(c) {
+    if (c.isGroup) return;
+    if (c.callerPn) this.chats.link(c.callerPn, c.from);
+    const id = this.chats.canonical(c.callerPn ?? c.from);
+    const at = c.date ? new Date(c.date).getTime() : Date.now();
+    if (c.status === "offer") {
+      this.chats.recordCall(id);
+      if (!this.chats.isWatchedId(id)) return;
+      this.calls.set(c.id, { startedAt: at, video: Boolean(c.isVideo) });
+      this.checked += 1;
+      this.#report({ chatId: id, kind: c.isVideo ? "video_call" : "call", callId: c.id, timestamp: at / 1000 });
+    } else if (c.status === "accept") {
+      this.calls.delete(c.id); // answered on the phone: nothing more to report
+    } else if (["timeout", "reject", "terminate"].includes(c.status) && this.calls.has(c.id)) {
+      const call = this.calls.get(c.id);
+      this.calls.delete(c.id);
+      this.#report({ chatId: id, kind: "missed_call", callId: c.id, timestamp: call.startedAt / 1000,
+                     ringSeconds: Math.max(0, Math.round((at - call.startedAt) / 1000)) });
+    }
+  }
+
+  #report(meta) {
+    this.forward({ chatName: this.chats.nameOf([meta.chatId]), sender: "", text: "", ...meta }, null)
+      .catch((e) => log.warn({ err: e.message }, "call report failed"));
+  }
+
   async #check(msg) {
     const content = extractContent(msg.message);
     if (!content) return;
@@ -146,12 +162,13 @@ export class WhatsApp {
       kind: content.kind,
       text: content.text,
     };
-    let image = null;
-    if (content.kind === "image" && content.imageBytes <= MAX_IMAGE_BYTES) {
-      image = await downloadMediaMessage(msg, "buffer", {}); // kept in memory only
+    const size = content.kind === "image" ? content.imageBytes : content.kind === "voice" ? content.audioBytes : null;
+    let media = null;
+    if (size != null && size <= MAX_MEDIA_BYTES) {
+      media = await downloadMediaMessage(msg, "buffer", {}); // kept in memory only
     }
     this.checked += 1;
-    await this.forward(meta, image);
+    await this.forward(meta, media);
   }
 
   async #onConnection({ connection, lastDisconnect, qr }) {
@@ -231,6 +248,7 @@ export class WhatsApp {
     clearTimeout(this.watchdog);
     clearTimeout(this.retryTimer); // a pending retry must not revive a stopped connection
     this.retries = 0;
+    this.calls.clear();
     try {
       this.sock?.end?.(undefined);
     } catch {

@@ -56,7 +56,7 @@ async function call(p: Pairing, path: string, init: RequestInit = {}, timeoutMs 
   }
 }
 
-export async function health(p: Pairing): Promise<{ link_sandbox: boolean }> {
+export async function health(p: Pairing): Promise<{ link_sandbox: boolean; ai?: boolean }> {
   return (await call(p, "/gateway/health")).json();
 }
 
@@ -76,6 +76,23 @@ export async function checkLinksBatched(p: Pairing, urls: string[]): Promise<Ser
     out.complete &&= r.complete;
   }
   return out;
+}
+
+export interface AIOpinion {
+  available: boolean;
+  model: string;
+  risk: "low" | "medium" | "high" | null;
+  summary: string;
+  red_flags: string[];
+  advice: string;
+  page_note: string;
+  message: string;
+}
+
+/** AI summary from the computer's model (the phone sends findings only, see ai.ts). */
+export async function explain(p: Pairing, evidence: object): Promise<AIOpinion> {
+  const res = await call(p, "/gateway/ai/explain", { method: "POST", body: JSON.stringify({ evidence, open_page: true }) }, 120_000);
+  return res.json();
 }
 
 // Live WhatsApp watching runs on the computer (whatsapp-bridge); the phone only shows its alerts.

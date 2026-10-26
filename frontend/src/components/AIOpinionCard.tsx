@@ -8,7 +8,8 @@ const RISK: Record<string, [string, string]> = {
   low: ["sees no clear scam", "bg-emerald-100 text-emerald-800"],
 };
 
-/** Local AI second opinion. Advisory only: the verdict above comes from evidence. */
+/** AI summary: what the message is and what the checks found, in plain words.
+ *  Advisory only: the verdict above comes from the evidence. */
 export default function AIOpinionCard({ ev, text, auto }: { ev: Evidence; text?: string; auto: boolean }) {
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
   const [op, setOp] = useState<AIOpinion | null>(null);
@@ -37,18 +38,18 @@ export default function AIOpinionCard({ ev, text, auto }: { ev: Evidence; text?:
     <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-lg">🤖</span>
-        <h3 className="font-semibold">AI second opinion</h3>
+        <h3 className="font-semibold">AI summary</h3>
         {op?.available && op.risk && (
           <span className={`rounded px-2 py-0.5 text-xs font-medium ${RISK[op.risk][1]}`}>AI {RISK[op.risk][0]}</span>
         )}
         <span className="ml-auto text-xs text-slate-500">
-          {op?.available ? `${op.model} · on this computer · ${(op.elapsed_ms / 1000).toFixed(1)} s` : "runs on this computer"}
+          {op?.available ? `${op.model} · ${(op.elapsed_ms / 1000).toFixed(1)} s` : ""}
         </span>
       </div>
 
       {state === "idle" && (
         <button onClick={run} className="mt-2 rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-indigo-500">
-          Ask the AI
+          Explain with AI
         </button>
       )}
       {state === "loading" && (
@@ -61,16 +62,17 @@ export default function AIOpinionCard({ ev, text, auto }: { ev: Evidence; text?:
       {op && !op.available && <p className="mt-2 text-sm text-slate-600">{op.message}</p>}
       {op?.available && (
         <div className="mt-2 space-y-2 text-sm">
-          <p>{op.reasoning}</p>
+          <p>{op.summary}</p>
           {op.red_flags.length > 0 && (
             <ul className="ml-5 list-disc text-slate-700">{op.red_flags.map((f, i) => <li key={i}>{f}</li>)}</ul>
           )}
           {op.advice && <p className="font-medium">{op.advice}</p>}
           {op.page_note && <p className="text-xs text-slate-500">{op.page_checked ? "🔍 " : ""}{op.page_note}</p>}
+          {!op.read_message && <p className="text-xs text-slate-500">Based on Amaan's findings only; the AI did not read the message.</p>}
         </div>
       )}
       <p className="mt-2 text-[11px] text-slate-400">
-        An AI can be wrong. The verdict above is based on the evidence listed; this is only a second opinion.
+        An AI can be wrong. The verdict above is based on the evidence listed; this only puts it in plain words.
       </p>
     </div>
   );

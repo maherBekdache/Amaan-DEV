@@ -131,7 +131,7 @@ function Main() {
             </View>
           )}
           {error && <Text style={s.note}>⚠️ {error}</Text>}
-          {result && <ResultCard r={result} />}
+          {result && <ResultCard r={result} pairing={pairing} />}
           </>}
 
           <Text style={[s.muted, { fontSize: 12, textAlign: "center" }]}>

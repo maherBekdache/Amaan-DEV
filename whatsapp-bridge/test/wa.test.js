@@ -10,10 +10,11 @@ import { WhatsApp } from "../src/wa.js";
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "amaan-wa-"));
   const sockets = [];
+  const sent = [];
   const wa = new WhatsApp({
     authDir: dir,
     chats: new Chats(dir),
-    forward: async () => {},
+    forward: async (meta, media) => { sent.push({ ...meta, media }); },
     loadAuth: async () => ({ state: {}, saveCreds: () => {} }),
     fetchVersion: async () => ({ version: [2, 3000, 1] }),
     makeSocket: () => {
@@ -26,7 +27,7 @@ function setup() {
   });
   const close = (code) => sockets.at(-1).ev.emit("connection.update", { connection: "close", lastDisconnect: { error: { output: { statusCode: code } } } });
   const tick = () => new Promise((r) => setTimeout(r, 10));
-  return { wa, sockets, close, tick };
+  return { wa, sockets, close, tick, sent };
 }
 
 test("calling connect twice at once opens only one connection", async () => {
@@ -104,4 +105,28 @@ test("an incoming call from an unknown number is reported, never answered", asyn
   assert.equal(reports.length, 1);
   assert.equal(reports[0].kind, "call");
   assert.equal(reports[0].chatId, "447700900123@s.whatsapp.net");
+});
+
+test("calls from unknown numbers: reported when ringing, and a short unanswered ring is reported again", async () => {
+  const { wa, sockets, sent } = setup();
+  await wa.connect();
+  const call = (id, status, sec, extra = {}) => sockets[0].ev.emit("call", [{ id, from: "88123@s.whatsapp.net", status,
+    date: new Date(1_000_000 + sec * 1000), isGroup: false, ...extra }]);
+  call("c1", "offer", 0);
+  call("c1", "timeout", 3);
+  call("c2", "offer", 10, { isVideo: true });
+  call("c2", "accept", 15);
+  call("c2", "terminate", 60);
+  assert.deepEqual(sent.map((m) => [m.kind, m.callId, m.ringSeconds]), [
+    ["call", "c1", undefined], ["missed_call", "c1", 3], ["video_call", "c2", undefined]]);
+  assert.equal(sent[0].chatId, "88123@s.whatsapp.net");
+});
+
+test("calls from saved contacts are not reported", async () => {
+  const { wa, sockets, sent } = setup();
+  await wa.connect();
+  wa.chats.upsertContact({ id: "96170111222@s.whatsapp.net", name: "Mom" });
+  sockets[0].ev.emit("call", [{ id: "c3", from: "96170111222@s.whatsapp.net", status: "offer", date: new Date(), isGroup: false }]);
+  sockets[0].ev.emit("call", [{ id: "c3", from: "96170111222@s.whatsapp.net", status: "timeout", date: new Date(), isGroup: false }]);
+  assert.equal(sent.length, 0);
 });

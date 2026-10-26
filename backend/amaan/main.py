@@ -14,11 +14,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from amaan import __version__
-from amaan.ai.provider import OllamaProvider
+from amaan.ai.provider import make_provider
 from amaan.ai.reasoner import AIOpinion, first_link, second_opinion
 from amaan.analyzer import Analyzer
 from amaan.api import whatsapp
 from amaan.clients.lookyloo import LookylooClient
+from amaan.clients.stt import Transcriber
 from amaan.clients.urlvet import UrlVetClient
 from amaan.config import get_settings
 from amaan.extract.qr import ImageRejected, available_decoders, decode_qr_codes
@@ -48,13 +49,17 @@ async def lifespan(app: FastAPI):
     app.state.urlvet = client
     app.state.reputation = reputation
     app.state.analyzer = Analyzer(settings, client, reputation)
-    app.state.ai = OllamaProvider(settings.ai_url, settings.ai_model) if settings.ai_enabled else None
+    app.state.ai = make_provider(settings)
     app.state.lookyloo = LookylooClient(settings.lookyloo_url, settings.lookyloo_timeout_s)
+    app.state.stt = Transcriber(settings.stt_url, settings.stt_model)
+    if app.state.stt.error:
+        log.warning(app.state.stt.error)
     log.info("Amaan %s started; URL.vet at %s", __version__, settings.urlvet_base_url)
     yield
     await client.aclose()
     await reputation.aclose()
     await app.state.lookyloo.aclose()
+    await app.state.stt.aclose()
     if app.state.ai:
         await app.state.ai.aclose()
 
@@ -65,7 +70,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_me
                    allow_headers=["Content-Type"], allow_credentials=False)
 
 
-GATEWAY_PATHS = ("/gateway/health", "/gateway/analyze/link", "/gateway/whatsapp")
+GATEWAY_PATHS = ("/gateway/health", "/gateway/analyze/link", "/gateway/whatsapp", "/gateway/ai/explain")
 
 
 def _host_allowed(host_header: str) -> bool:
@@ -122,7 +127,7 @@ async def health(request: Request) -> HealthResponse:
     st = request.app.state
     uv = await st.urlvet.health()
     ai = {"available": await st.ai.available() if st.ai else False,
-          "model": settings.ai_model if st.ai else None, "provider": "ollama" if st.ai else None}
+          "model": st.ai.model if st.ai else None, "provider": st.ai.name if st.ai else None}
     return HealthResponse(status="ok", version=__version__, urlvet=uv,
                           qr_decoders=available_decoders(settings.wechat_model_dir), ai=ai,
                           lookyloo={"enabled": st.lookyloo.enabled, "reachable": await st.lookyloo.reachable()})
@@ -165,8 +170,10 @@ async def analyze_image(request: Request, file: UploadFile = File(...),
 
 @app.get("/gateway/health")
 async def gateway_health(request: Request) -> dict:
-    uv = await request.app.state.urlvet.health()
-    return {"status": "ok", "version": __version__, "link_sandbox": bool(uv.get("reachable"))}
+    st = request.app.state
+    uv = await st.urlvet.health()
+    return {"status": "ok", "version": __version__, "link_sandbox": bool(uv.get("reachable")),
+            "ai": bool(st.ai and await st.ai.available())}
 
 
 @app.post("/gateway/analyze/link", response_model=Evidence)
@@ -188,9 +195,12 @@ async def phone_pairing() -> dict:
 
 
 @app.post("/ai/explain", response_model=AIOpinion)
+@app.post("/gateway/ai/explain", response_model=AIOpinion, include_in_schema=False)  # phone: evidence only, no text
 async def ai_explain(req: ExplainRequest, request: Request) -> AIOpinion:
-    """AI second opinion on a result. Local model; Lookyloo opens the link first if available."""
+    """AI summary of a result. Lookyloo opens the link in its sandbox first if available."""
     st = request.app.state
+    if request.url.path.startswith("/gateway"):
+        req.text = None  # the phone keeps messages on the phone
     if not st.ai:
         return AIOpinion(available=False, message="AI is turned off (AMAAN_AI_ENABLED=0).")
     capture = None

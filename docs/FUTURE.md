@@ -7,7 +7,7 @@ What exists today (Oct 2026):
 | Message cues | weighted Arabic / Arabizi / English phrase rules | rules |
 | Link checks | local rules + URL.vet + OpenPhish/URLhaus lists + Safe Browsing + VirusTotal + urlscan.io | rules + reputation |
 | Page capture | Lookyloo (redirects + page text in a sandbox) | evidence |
-| AI | local LLM via Ollama (`qwen2.5:3b` default) gives a second opinion from all the evidence | generative AI, advisory |
+| AI | local LLM via Ollama (`qwen2.5:3b` default) summarizes the message and every tool's answer in plain words | generative AI, advisory |
 
 The AI never replaces the evidence-based verdict: it is shown as a second
 opinion. That keeps every verdict explainable (project rule 3).

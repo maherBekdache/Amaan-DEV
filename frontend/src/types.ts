@@ -102,9 +102,10 @@ export interface AIOpinion {
   provider: string;
   model: string;
   risk: "low" | "medium" | "high" | null;
-  reasoning: string;
+  summary: string;
   red_flags: string[];
   advice: string;
+  read_message: boolean;
   page_checked: boolean;
   page_note: string;
   elapsed_ms: number;
@@ -167,7 +168,8 @@ export interface WaAlert {
   received_at: string;
   chat_name: string;
   sender: string;
-  kind: string;
+  kind: "text" | "image" | "voice" | "call" | "video_call" | "missed_call";
   text: string;
   evidence: Evidence;
+  call_id?: string | null;
 }

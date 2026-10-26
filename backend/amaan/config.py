@@ -1,7 +1,9 @@
 """Runtime settings, read from environment variables (prefix AMAAN_)."""
 
+import ipaddress
 from functools import lru_cache
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -56,10 +58,19 @@ class Settings(BaseSettings):
     sources_timeout_s: float = 45.0
     urlscan_wait_s: float = 40.0
 
-    # AI second opinion (local model via Ollama; see docs/FUTURE.md for cloud options)
+    # AI summary (docs/DECISIONS.md D12, D17). "ollama" = local Ollama API; "openai" = any
+    # OpenAI-compatible server (LM Studio, vLLM, llama.cpp, or a cloud model once approved).
     ai_enabled: bool = True
+    ai_provider: str = "ollama"
     ai_url: str = "http://localhost:11434"
     ai_model: str = "qwen2.5:3b"  # multilingual incl. Arabic; use qwen2.5:7b with a GPU
+    ai_api_key: str | None = None
+    # A model that is not on this computer only gets the evidence (signals, source answers,
+    # defanged link), never the message or page text, unless this is set (needs owner approval).
+    ai_remote_may_read_messages: bool = False
+    # Speech-to-text for WhatsApp voice notes: a local OpenAI-style /v1/audio/transcriptions server.
+    stt_url: str | None = None
+    stt_model: str = ""
     # Lookyloo (optional sandbox that opens the page and records everything it loads)
     lookyloo_url: str | None = None
     lookyloo_timeout_s: float = 60.0
@@ -84,3 +95,15 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def is_local_url(url: str) -> bool:
+    """True for this computer, a Docker service name, or a private-network address."""
+    host = (urlsplit(url if "://" in url else "//" + url).hostname or "").lower()
+    if host in ("localhost", "host.docker.internal") or (host and "." not in host) or host.endswith(".local"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local

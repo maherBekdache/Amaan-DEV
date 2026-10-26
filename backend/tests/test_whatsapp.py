@@ -200,3 +200,51 @@ def test_phone_gets_alerts_with_token_only(client, monkeypatch):
     assert r["status"]["state"] == "qr" and "qr" not in r["status"]  # linking stays on the computer
     assert r["alerts"][0]["chat_name"] == "+447700900123"
     assert client.get("/whatsapp/alerts", headers=lan).status_code == 400  # the rest stays laptop-only
+
+
+def test_one_ring_call_replaces_the_ringing_alert(client):
+    h = {"X-Bridge-Token": "secret-token"}
+    base = {"chat_id": "88216123456@s.whatsapp.net", "chat_name": "+88216123456", "call_id": "c1"}
+    assert client.post("/whatsapp/ingest", headers=h, data={**base, "kind": "call"}).json()["risk_level"] == "Medium"
+    r = client.post("/whatsapp/ingest", headers=h, data={**base, "kind": "missed_call", "ring_seconds": "2"})
+    assert r.json() == {"stored": True, "risk_level": "High"}
+    alerts = client.get("/whatsapp/alerts").json()
+    assert len(alerts) == 1 and alerts[0]["kind"] == "missed_call"
+    assert alerts[0]["evidence"]["signals"][0]["id"] == "one_ring_call"
+    # a long unanswered ring from a Lebanese number is only a note, not a Wangiri warning
+    r = client.post("/whatsapp/ingest", headers=h, data={"kind": "missed_call", "chat_id": "96170123456@s.whatsapp.net",
+                                                          "call_id": "c2", "ring_seconds": "30"})
+    assert r.json()["risk_level"] == "Low"
+
+
+def test_voice_note_without_speech_to_text_is_still_reported(client):
+    h = {"X-Bridge-Token": "secret-token"}
+    r = client.post("/whatsapp/ingest", headers=h, data={"kind": "voice", "chat_id": "447700900123@s.whatsapp.net"},
+                    files={"file": ("voice.ogg", b"OggS fake audio", "audio/ogg")})
+    assert r.json() == {"stored": True, "risk_level": "Medium"}
+    sig = client.get("/whatsapp/alerts").json()[0]["evidence"]["signals"][0]
+    assert sig["id"] == "voice_note_unchecked" and "not transcribed" in sig["detail"]
+
+
+def test_voice_note_is_transcribed_and_checked(client, monkeypatch):
+    from amaan.clients.stt import Transcriber
+
+    stt = Transcriber("http://stt:8000")
+    client.mock.post("http://stt:8000/v1/audio/transcriptions").mock(
+        return_value=httpx.Response(200, json={"text": "rbe7t jeyze! ab3atli el code w ekbos omt-gift.example.com"}))
+    monkeypatch.setattr(app.state, "stt", stt)
+    h = {"X-Bridge-Token": "secret-token"}
+    r = client.post("/whatsapp/ingest", headers=h, data={"kind": "voice", "chat_id": "96170123456@s.whatsapp.net"},
+                    files={"file": ("voice.ogg", b"OggS fake audio", "audio/ogg")})
+    assert r.json() == {"stored": True, "risk_level": "High"}
+    alert = client.get("/whatsapp/alerts").json()[0]
+    assert alert["text"].startswith("rbe7t jeyze") and alert["kind"] == "voice"
+    assert any(s["id"] == "voice_transcribed" for s in alert["evidence"]["signals"])
+
+
+def test_speech_to_text_must_be_local():
+    from amaan.clients.stt import Transcriber
+
+    assert not Transcriber("https://api.example.com").enabled
+    assert Transcriber("http://host.docker.internal:9000").enabled
+    assert not Transcriber(None).enabled

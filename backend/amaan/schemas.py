@@ -177,9 +177,10 @@ class WhatsAppAlert(BaseModel):
     received_at: datetime
     chat_name: str
     sender: str
-    kind: str
+    kind: str  # text | image | voice | call | video_call | missed_call
     text: str
     evidence: Evidence
+    call_id: str | None = None
 
 
 class LinkRequest(BaseModel):

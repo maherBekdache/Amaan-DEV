@@ -203,25 +203,58 @@ async def whatsapp_clear_alerts() -> dict:
     return {"cleared": True}
 
 
-def call_evidence(chat_id: str, video: bool = False) -> Evidence:
-    """An unknown number called on WhatsApp. Foreign numbers are a classic scam opener."""
+ONE_RING_SECONDS = 6  # a call that stops ringing this fast was meant to be missed
+
+
+def _number(chat_id: str) -> tuple[str, bool]:
+    """('+447700900123', foreign?) for a WhatsApp id; foreign = not a Lebanese (+961) number."""
     digits = chat_id.split("@")[0]
-    number = f"+{digits}" if digits.isdigit() else "a hidden number"
-    foreign = digits.isdigit() and not digits.startswith("961")
-    what = "video call" if video else "call"
-    sig = Signal(
-        id="unknown_caller",
-        title=f"Unknown {'foreign ' if foreign else ''}number {what}ed you on WhatsApp",
-        detail=(f"{number} is not in your contacts. "
-                + ("Scam calls often come from foreign numbers posing as banks, couriers or WhatsApp support. "
-                   if foreign else "")
-                + "Never share codes or send money to someone you don't know; hang up and call the official number."),
-        severity=Severity.medium if foreign else Severity.low,
-        label=EvidenceLabel.automated_indicator, source="amaan",
-    )
-    level = RiskLevel.medium if foreign else RiskLevel.low
-    return Evidence(input_type=InputType.text, analyzed_at=datetime.now(timezone.utc), items=[], signals=[sig],
-                    risk_level=level, complete=True, explanation=sig.detail, warnings=[], stats={})
+    if not digits.isdigit() or chat_id.endswith("@lid"):
+        return "a hidden number", False
+    return f"+{digits}", not digits.startswith("961")
+
+
+def _sig(id_: str, title: str, detail: str, severity: Severity) -> Signal:
+    return Signal(id=id_, title=title, detail=detail, severity=severity,
+                  label=EvidenceLabel.automated_indicator, source="amaan")
+
+
+def _evidence(signals: list[Signal], level: RiskLevel) -> Evidence:
+    return Evidence(input_type=InputType.text, analyzed_at=datetime.now(timezone.utc), items=[], signals=signals,
+                    risk_level=level, complete=True, explanation=" ".join(s.detail for s in signals[:2]))
+
+
+def call_evidence(chat_id: str, kind: str = "call", ring_seconds: int | None = None) -> Evidence:
+    """An unknown number called on WhatsApp (call, video_call) or the call ended unanswered (missed_call).
+
+    Linked devices see only that a call rings and ends, never its audio, so this is
+    judged from the number and the ringing time. Foreign numbers are a classic scam
+    opener; a very short ring is the "Wangiri" trick (make the victim call back a
+    premium-rate number)."""
+    number, foreign = _number(chat_id)
+    never = "Never share codes or send money to someone you don't know; hang up and call the official number."
+    if kind == "missed_call" and ring_seconds is not None and ring_seconds <= ONE_RING_SECONDS:
+        sig = _sig("one_ring_call", f"One ring and hang up from {'a foreign' if foreign else 'an unknown'} number",
+                   f"{number} let it ring only {ring_seconds} s. This is how 'Wangiri' scams start: they want you to call "
+                   "back a number that charges you, or to start a conversation. Don't call back.",
+                   Severity.high if foreign else Severity.medium)
+        return _evidence([sig], RiskLevel.high if foreign else RiskLevel.medium)
+    what = {"video_call": "video called you", "missed_call": "called you and hung up"}.get(kind, "called you")
+    sig = _sig("unknown_caller", f"Unknown {'foreign ' if foreign else ''}number {what} on WhatsApp",
+               f"{number} is not in your contacts. "
+               + ("Scam calls often come from foreign numbers posing as banks, couriers or WhatsApp support. "
+                  if foreign else "") + never,
+               Severity.medium if foreign else Severity.low)
+    return _evidence([sig], RiskLevel.medium if foreign else RiskLevel.low)
+
+
+def voice_evidence(chat_id: str, reason: str) -> Evidence:
+    """A voice note that could not be transcribed: say so instead of staying silent."""
+    number, foreign = _number(chat_id)
+    sig = _sig("voice_note_unchecked", "Voice note from an unknown number (not checked)",
+               f"{reason} A cloned voice can sound like someone you know; if it asks for money or a code, "
+               "call that person on their usual number first.", Severity.medium if foreign else Severity.low)
+    return _evidence([sig], RiskLevel.medium if foreign else RiskLevel.low)
 
 
 @router.post("/whatsapp/ingest")
@@ -233,48 +266,75 @@ async def whatsapp_ingest(
     sender: str = Form(""),
     timestamp: int = Form(0),
     text: str = Form(""),
+    call_id: str = Form(""),
+    ring_seconds: int | None = Form(None),
     file: UploadFile | None = File(None),
     x_bridge_token: str = Header(""),
 ) -> dict:
-    """Called by the bridge for each new message in a selected chat."""
+    """Called by the bridge for each new message, voice note or call in a watched chat."""
     if not settings.bridge_token:
         raise HTTPException(503, "WhatsApp bridge token not configured.")
     if not secrets.compare_digest(x_bridge_token, settings.bridge_token):
         raise HTTPException(403, "Invalid bridge token.")
     analyzer: Analyzer = request.app.state.analyzer
-    _stats["checked"] += 1
-    if kind in ("call", "video_call"):
-        ev = call_evidence(chat_id, video=kind == "video_call")
-        return _store_alert(ev, timestamp, chat_name or chat_id, sender, kind, "")
+    alert = {"timestamp": timestamp, "chat_name": chat_name or chat_id, "sender": sender, "kind": kind, "call_id": call_id}
+    if kind != "missed_call":  # the end of a call already counted when it started
+        _stats["checked"] += 1
+    if kind in ("call", "video_call", "missed_call"):
+        return _store_alert(call_evidence(chat_id, kind, ring_seconds), text="", **alert)
 
-    evidences: list[Evidence] = []
+    data = b""
     try:
         if file is not None:
             data = await file.read(settings.max_upload_bytes + 1)
-            if len(data) <= settings.max_upload_bytes:
-                try:
-                    qr = await run_in_threadpool(decode_qr_codes, data, max_pixels=settings.max_image_pixels,
-                                                 max_codes=settings.max_qr_codes_per_image)
-                    if qr.codes:
-                        evidences.append(await analyzer.analyze_qr(qr, InputType.image))
-                except ImageRejected:
-                    pass
-            data = b""
+            if len(data) > settings.max_upload_bytes:
+                data = b""
     finally:
         if file is not None:
-            await file.close()
-    if text.strip():
+            await file.close()  # deletes any spooled temp file
+
+    evidences: list[Evidence] = []
+    if kind == "voice":
+        transcript = await request.app.state.stt.transcribe(data) if data else None
+        data = b""
+        if not transcript:
+            reason = ("Voice notes are not transcribed yet (no speech-to-text server is set up)."
+                      if not request.app.state.stt.enabled else "The voice note could not be transcribed.")
+            return _store_alert(voice_evidence(chat_id, reason), text="", **alert)
+        ev = await analyzer.analyze_text(TextRequest(text=transcript))
+        ev.signals.append(_sig("voice_transcribed", "Checked what the voice note says",
+                               "Transcribed automatically on this computer; the transcript may contain mistakes.",
+                               Severity.info))
+        evidences.append(ev)
+        text = transcript
+    elif data:
+        try:
+            qr = await run_in_threadpool(decode_qr_codes, data, max_pixels=settings.max_image_pixels,
+                                         max_codes=settings.max_qr_codes_per_image)
+            if qr.codes:
+                evidences.append(await analyzer.analyze_qr(qr, InputType.image))
+        except ImageRejected:
+            pass
+        data = b""
+    if text.strip() and kind != "voice":
         evidences.append(await analyzer.analyze_text(TextRequest(text=text)))
 
     flagged = [e for e in evidences if e.risk_level is not RiskLevel.low]
     if not flagged:
         return {"stored": False}
     ev = max(flagged, key=lambda e: aggregate.rank(e.risk_level))
-    return _store_alert(ev, timestamp, chat_name or chat_id, sender, kind, text[:_SNIPPET])
+    return _store_alert(ev, text=text[:_SNIPPET], **alert)
 
 
-def _store_alert(ev: Evidence, timestamp: int, chat_name: str, sender: str, kind: str, text: str) -> dict:
+def _store_alert(ev: Evidence, *, timestamp: int, chat_name: str, sender: str, kind: str, text: str,
+                 call_id: str = "") -> dict:
+    """Keep the alert in memory. A call's later event (missed, one ring) replaces its first alert."""
     received = datetime.fromtimestamp(timestamp, timezone.utc) if timestamp else datetime.now(timezone.utc)
-    _alerts.append(WhatsAppAlert(id=next(_alert_ids), received_at=received, chat_name=chat_name, sender=sender,
-                                 kind=kind, text=text, evidence=ev))
+    old = next((a for a in _alerts if call_id and a.call_id == call_id), None)
+    alert = WhatsAppAlert(id=old.id if old else next(_alert_ids), received_at=received, chat_name=chat_name,
+                          sender=sender, kind=kind, text=text, evidence=ev, call_id=call_id or None)
+    if old:
+        _alerts[_alerts.index(old)] = alert
+    else:
+        _alerts.append(alert)
     return {"stored": True, "risk_level": ev.risk_level.value}

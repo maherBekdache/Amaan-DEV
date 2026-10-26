@@ -42,8 +42,8 @@ backend/amaan/       FastAPI app (main.py: routes + request guard; analyzer.py: 
   extract/           find links in text, decode QR codes, parse dropped HTML (all offline)
   scoring/           local rules, Arabic/Arabizi scam phrases, final verdict + reasons
   reputation/        OpenPhish/URLhaus lists, Safe Browsing, VirusTotal, urlscan.io
-  clients/           URL.vet sandbox and Lookyloo
-  ai/                local AI second opinion (Ollama)
+  clients/           URL.vet sandbox, Lookyloo, speech-to-text for voice notes
+  ai/                AI summary (Ollama or any OpenAI-compatible server)
   api/whatsapp.py, importers/   WhatsApp: chat-export import, alerts, bridge proxy
   data/              brands.json (official domains, each checked by a teammate), cues.json, lookups.json
 backend/tests/       pytest suite (incl. every built-in example)

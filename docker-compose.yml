@@ -25,8 +25,14 @@ services:
       AMAAN_URLHAUS_KEY: ${AMAAN_URLHAUS_KEY:-}
       AMAAN_FEEDS_ENABLED: ${AMAAN_FEEDS_ENABLED:-1}
       # AI second opinion: Ollama installed on this computer (see README).
+      AMAAN_AI_PROVIDER: ${AMAAN_AI_PROVIDER:-ollama}
       AMAAN_AI_URL: ${AMAAN_AI_URL:-http://host.docker.internal:11434}
       AMAAN_AI_MODEL: ${AMAAN_AI_MODEL:-qwen2.5:3b}
+      AMAAN_AI_API_KEY: ${AMAAN_AI_API_KEY:-}
+      AMAAN_AI_REMOTE_MAY_READ_MESSAGES: ${AMAAN_AI_REMOTE_MAY_READ_MESSAGES:-0}
+      # Voice notes: local speech-to-text server (empty = off)
+      AMAAN_STT_URL: ${AMAAN_STT_URL:-}
+      AMAAN_STT_MODEL: ${AMAAN_STT_MODEL:-}
       # Lookyloo (only if started with -Lookyloo / start-everything.bat)
       AMAAN_LOOKYLOO_URL: ${AMAAN_LOOKYLOO_URL:-http://lookyloo:5100}
     extra_hosts: ["host.docker.internal:host-gateway"]
