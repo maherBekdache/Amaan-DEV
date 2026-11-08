@@ -2,7 +2,7 @@
 
 The model receives the evidence Amaan already collected: its own rules, the answer
 of every security source (URL.vet, the phishing lists, Safe Browsing, VirusTotal,
-urlscan.io) and, for links, what Lookyloo saw in its sandbox. It explains in plain
+urlscan.io) and, for links, what the expansion worker saw in its sandbox. It explains in plain
 language what the message is about, what the checks found, and what to do. It is
 shown under the evidence-based verdict and never replaces it.
 
@@ -22,8 +22,7 @@ import time
 from pydantic import BaseModel
 
 from amaan.ai.provider import LLMProvider, LLMUnavailable
-from amaan.clients.lookyloo import Capture
-from amaan.schemas import Evidence, ItemKind
+from amaan.schemas import Evidence, Expansion, ItemKind
 
 SCHEMA = {
     "type": "object",
@@ -61,7 +60,7 @@ class AIOpinion(BaseModel):
     red_flags: list[str] = []
     advice: str = ""
     read_message: bool = False  # the model saw the message text (local model only)
-    page_checked: bool = False  # Lookyloo opened the page for this summary
+    page_checked: bool = False  # the sandbox followed the link for this summary
     page_note: str = ""
     elapsed_ms: int = 0
     message: str = ""
@@ -80,7 +79,7 @@ def _sources(it) -> str:
     return "; ".join(parts)
 
 
-def build_prompt(ev: Evidence, text: str | None, capture: Capture | None, read_message: bool = True) -> str:
+def build_prompt(ev: Evidence, text: str | None, page: Expansion | None, read_message: bool = True) -> str:
     """The evidence as plain text. read_message=False leaves out everything the sender wrote
     (message, page text, matched phrases) and keeps only Amaan's findings and the defanged links."""
     lines = [f"Amaan's verdict: {ev.risk_level.value} risk.", "", "Items found:"]
@@ -108,11 +107,18 @@ def build_prompt(ev: Evidence, text: str | None, capture: Capture | None, read_m
         lines.append("Notes: " + " ".join(ev.warnings[:3]))
     if text and read_message:
         lines += ["", "The message:", _untrusted(text, 1500)]
-    if capture and capture.ok:
-        lines += ["", "Lookyloo opened the link in an isolated sandbox.",
-                  f"Redirect chain: {' -> '.join(capture.redirects[:8]) or 'none'}"]
+    if page and page.status == "ok":
+        lines += ["", "Amaan's sandbox followed the link (pages read, scripts never run).",
+                  f"Redirect chain: {' -> '.join(h.url for h in page.hops[:8]) or 'none'}",
+                  f"Stopped because: {page.stopped}"]
+        if page.asks_for:
+            lines.append(f"The last page asks for: {', '.join(page.asks_for)}")
+        if page.human_check:
+            lines.append("The last page hides behind a 'verify you are human' check.")
+        if page.download:
+            lines.append(f"The link downloads a file: {page.download.content_type or 'unknown type'}")
         if read_message:
-            lines += ["Page content (as text):", _untrusted(capture.page_text, 2500)]
+            lines += ["Page title and content (as text):", _untrusted(f"{page.title}\n{page.text}", 2500)]
     lines += ["", "Write the JSON summary."]
     return "\n".join(lines)
 
@@ -125,21 +131,21 @@ def _clip(o: dict) -> dict:
 
 
 async def second_opinion(provider: LLMProvider, ev: Evidence, text: str | None = None,
-                         capture: Capture | None = None) -> AIOpinion:
+                         page: Expansion | None = None) -> AIOpinion:
     base = {"provider": provider.name, "model": provider.model}
     if not await provider.available():
         return AIOpinion(available=False, **base, message=provider.setup_hint)
     read = provider.may_read_messages
     t0 = time.perf_counter()
     try:
-        out = _clip(await provider.generate_json(SYSTEM, build_prompt(ev, text, capture, read), SCHEMA))
+        out = _clip(await provider.generate_json(SYSTEM, build_prompt(ev, text, page, read), SCHEMA))
     except LLMUnavailable as e:
         return AIOpinion(available=False, **base, message=str(e))
     note = ""
-    if capture is not None:
-        note = "Page opened in Lookyloo's sandbox." if capture.ok else capture.message
+    if page is not None:
+        note = "Link followed in Amaan's sandbox (no browser, scripts not run)." if page.status == "ok" else page.message
     return AIOpinion(available=True, **base, **out, read_message=read and bool(text),
-                     page_checked=bool(capture and capture.ok), page_note=note,
+                     page_checked=bool(page and page.status == "ok"), page_note=note,
                      elapsed_ms=int((time.perf_counter() - t0) * 1000))
 
 

@@ -11,7 +11,14 @@ import unicodedata
 
 from amaan.data import load
 from amaan.extract.payloads import CRYPTO_SCHEMES, Payload
-from amaan.extract.urls import ExtractedUrl, TextFlags, extract_urls, to_unicode_host
+from amaan.extract.urls import (
+    ExtractedUrl,
+    TextFlags,
+    defang,
+    extract_urls,
+    nested_links,
+    to_unicode_host,
+)
 from amaan.schemas import EvidenceLabel, ItemKind, Severity, Signal
 
 # Words scam domains use to look rewarding or official. Matched inside the
@@ -70,13 +77,67 @@ def _scripts(label: str) -> set[str]:
     return out
 
 
+# Typing errors (typosquatting). Only names of 5+ letters are compared, and only
+# with the slips people actually make: a dropped letter (not the first), a doubled
+# letter, two letters swapped, or a key next to the right one. Any single edit would
+# also flag ordinary words ("finance" against "binance", "cloud" against "icloud").
+_KEY_ROWS = ("1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm")
+_KEY_SHIFT = (0.0, 0.5, 0.75, 1.25)  # how far each keyboard row is shifted to the right
+_KEY_POS = {c: (r, i + _KEY_SHIFT[r]) for r, row in enumerate(_KEY_ROWS) for i, c in enumerate(row)}
+
+
+def _near_keys(a: str, b: str) -> bool:
+    """True when two keys touch on a QWERTY keyboard."""
+    pa, pb = _KEY_POS.get(a), _KEY_POS.get(b)
+    if not pa or not pb or a == b:
+        return False
+    rows, dx = abs(pa[0] - pb[0]), abs(pa[1] - pb[1])
+    return (rows == 0 and dx == 1) or (rows == 1 and dx <= 0.75)
+
+
+def typo_kind(candidate: str, official: str) -> str | None:
+    """How `candidate` is a one-slip typing error of `official`, or None."""
+    c, o = candidate.lower(), official.lower()
+    if c == o or len(o) < 5 or abs(len(c) - len(o)) > 1:
+        return None
+    if len(c) == len(o):
+        diff = [i for i in range(len(o)) if c[i] != o[i]]
+        if len(diff) == 1 and _near_keys(c[diff[0]], o[diff[0]]):
+            return "a key next to the right one"
+        if len(diff) == 2 and diff[1] == diff[0] + 1 and c[diff[0]] == o[diff[1]] and c[diff[1]] == o[diff[0]]:
+            return "two letters swapped"
+        return None
+    if len(c) == len(o) - 1:  # a letter dropped
+        i = next((k for k in range(len(c)) if c[k] != o[k]), len(c))
+        return "a letter left out" if i > 0 and c == o[:i] + o[i + 1:] else None
+    i = next((k for k in range(len(o)) if c[k] != o[k]), len(o))  # a letter added
+    if c[:i] + c[i + 1:] != o:
+        return None
+    extra, near = c[i], [o[k] for k in (i - 1, i) if 0 <= k < len(o)]
+    if any(extra == n for n in near):
+        return "a letter doubled"
+    if any(_near_keys(extra, n) for n in near):
+        return "an extra key pressed"
+    return None
+
+
 def url_signals(u: ExtractedUrl) -> list[Signal]:
     sigs: list[Signal] = []
     officials = official_domains()
     reg = u.registrable.lower()
     reg_unicode = to_unicode_host(reg) if reg.startswith("xn--") or ".xn--" in reg else reg
+    inner = nested_links(u)
 
-    if reg in officials:
+    if inner:
+        n = inner[0]
+        sigs.append(_sig(
+            "hidden_redirect", f"Link forwards to another site ({n.host})",
+            f"It starts on {reg} but carries {defang(n.url)} inside it. Trusted sites can be used to pass "
+            "you on to a scam page, so Amaan checks the inner link as well.",
+            Severity.medium,
+        ))
+
+    if reg in officials and not inner:
         sigs.append(_sig(
             "official_domain", f"Official {officials[reg]} domain",
             f"{reg} is on Amaan's curated list of official domains. Still never share codes or passwords over chat.",
@@ -114,19 +175,48 @@ def url_signals(u: ExtractedUrl) -> list[Signal]:
                 Severity.low,
             ))
 
-    # Lookalike / impersonation of a known brand.
+    # Lookalike / impersonation of a known brand: the strongest finding only.
     if reg not in officials and not u.is_ip:
         sk = skeleton(reg_unicode)
         domain_label = reg_unicode.split(".")[0]
+        host_dots = "." + u.host_ascii + "."
+        found: Signal | None = None
         for official, brand in officials.items():
+            if f".{official}." in host_dots:
+                found = _sig(
+                    "brand_prefix", f"Starts with {brand}'s address but is another site",
+                    f"'{u.host}' begins with {official}, but the site it opens is {reg}.",
+                    Severity.high,
+                )
+                break
+        for official, brand in officials.items() if not found else ():
             off_label = official.split(".")[0]
             if sk == skeleton(official) or (skeleton(domain_label) == skeleton(off_label) and domain_label != off_label):
-                sigs.append(_sig(
+                found = _sig(
                     "lookalike_domain", f"Imitates {brand}'s official domain",
                     f"'{u.host}' looks like {official} but is a different domain.",
                     Severity.high,
-                ))
+                )
                 break
+        for official, brand in officials.items() if not found else ():
+            kind = typo_kind(domain_label, official.split(".")[0])
+            if kind:
+                found = _sig(
+                    "typo_domain", f"Misspells {brand}'s official domain",
+                    f"'{u.host}' is {official} with {kind}, a typing error scammers register on purpose.",
+                    Severity.high,
+                )
+                break
+        for official, brand in officials.items() if not found else ():
+            if domain_label == official.split(".")[0]:
+                found = _sig(
+                    "brand_other_ending", f"Same name as {brand}'s site, different ending",
+                    f"{brand}'s official domain is {official}; {reg} is a different site that anyone could register.",
+                    Severity.medium,
+                )
+                break
+        if found:
+            sigs.append(found)
         else:
             tokens = set(re.split(r"[.\-_0-9]+", skeleton(u.host)))
             for b in _data()["brands"]:

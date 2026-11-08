@@ -2,7 +2,7 @@
 import brandsData from "./data/brands.json";
 import { CRYPTO_SCHEMES, type Payload } from "./payloads";
 import { sig, type Signal } from "./types";
-import { toUnicodeHost, type ExtractedUrl, type TextFlags } from "./urls";
+import { defang, nestedLinks, toUnicodeHost, type ExtractedUrl, type TextFlags } from "./urls";
 
 interface Brand { name: string; domains: string[]; keywords: string[] }
 const BRANDS: Brand[] = (brandsData as { brands: Brand[] }).brands;
@@ -30,11 +30,56 @@ const SCRIPTS: [string, RegExp][] = [
 ];
 const scriptsOf = (label: string) => new Set(SCRIPTS.filter(([, re]) => [...label].some((c) => re.test(c))).map(([n]) => n));
 
+// Typing errors (typosquatting). Only names of 5+ letters are compared, and only with
+// the slips people actually make: a dropped letter (not the first), a doubled letter, two
+// letters swapped, or a key next to the right one. Same as the backend.
+const KEY_ROWS = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"];
+const KEY_SHIFT = [0, 0.5, 0.75, 1.25]; // how far each keyboard row is shifted to the right
+const KEY_POS = new Map<string, [number, number]>(KEY_ROWS.flatMap((row, r) => [...row].map((c, i) => [c, [r, i + KEY_SHIFT[r]]] as [string, [number, number]])));
+
+function nearKeys(a: string, b: string): boolean {
+  const pa = KEY_POS.get(a), pb = KEY_POS.get(b);
+  if (!pa || !pb || a === b) return false;
+  const rows = Math.abs(pa[0] - pb[0]), dx = Math.abs(pa[1] - pb[1]);
+  return (rows === 0 && dx === 1) || (rows === 1 && dx <= 0.75);
+}
+
+/** How `candidate` is a one-slip typing error of `official`, or null. */
+export function typoKind(candidate: string, official: string): string | null {
+  const c = candidate.toLowerCase(), o = official.toLowerCase();
+  if (c === o || o.length < 5 || Math.abs(c.length - o.length) > 1) return null;
+  if (c.length === o.length) {
+    const diff = [...o].map((_, i) => i).filter((i) => c[i] !== o[i]);
+    if (diff.length === 1 && nearKeys(c[diff[0]], o[diff[0]])) return "a key next to the right one";
+    if (diff.length === 2 && diff[1] === diff[0] + 1 && c[diff[0]] === o[diff[1]] && c[diff[1]] === o[diff[0]]) return "two letters swapped";
+    return null;
+  }
+  if (c.length === o.length - 1) { // a letter dropped
+    let i = 0;
+    while (i < c.length && c[i] === o[i]) i++;
+    return i > 0 && c === o.slice(0, i) + o.slice(i + 1) ? "a letter left out" : null;
+  }
+  let i = 0; // a letter added
+  while (i < o.length && c[i] === o[i]) i++;
+  if (c.slice(0, i) + c.slice(i + 1) !== o) return null;
+  const extra = c[i];
+  const near = [i - 1, i].filter((k) => k >= 0 && k < o.length).map((k) => o[k]);
+  if (near.some((n) => extra === n)) return "a letter doubled";
+  if (near.some((n) => nearKeys(extra, n))) return "an extra key pressed";
+  return null;
+}
+
 export function urlSignals(u: ExtractedUrl): Signal[] {
   const out: Signal[] = [];
   const reg = u.registrable.toLowerCase();
   const regUnicode = reg.includes("xn--") ? toUnicodeHost(reg) : reg;
-  const official = OFFICIALS.get(reg);
+  const inner = nestedLinks(u);
+  if (inner.length) {
+    const n = inner[0];
+    out.push(sig("hidden_redirect", `Link forwards to another site (${n.host})`,
+      `It starts on ${reg} but carries ${defang(n.url)} inside it. Trusted sites can be used to pass you on to a scam page, so Amaan checks the inner link as well.`, "medium"));
+  }
+  const official = inner.length ? undefined : OFFICIALS.get(reg);
   if (official) {
     out.push(sig("official_domain", `Official ${official} domain`,
       `${reg} is on Amaan's curated list of official domains. Still never share codes or passwords over chat.`, "good", "verified"));
@@ -59,19 +104,41 @@ export function urlSignals(u: ExtractedUrl): Signal[] {
       : sig("punycode_host", "International (non-Latin) domain",
         `Shown as '${u.host}', registered as ${u.hostAscii}. Check it is the site you expect.`, "low"));
   }
-  if (!official && !u.isIp) {
+  if (!OFFICIALS.has(reg) && !u.isIp) {
+    // Lookalike / impersonation of a known brand: the strongest finding only.
     const sk = skeleton(regUnicode);
     const label = regUnicode.split(".")[0];
-    let look = false;
-    for (const [off, brand] of OFFICIALS) {
-      const offLabel = off.split(".")[0];
-      if (sk === skeleton(off) || (skeleton(label) === skeleton(offLabel) && label !== offLabel)) {
-        out.push(sig("lookalike_domain", `Imitates ${brand}'s official domain`, `'${u.host}' looks like ${off} but is a different domain.`, "high"));
-        look = true;
+    const hostDots = `.${u.hostAscii}.`;
+    const entries = [...OFFICIALS];
+    let found: Signal | null = null;
+    for (const [off, brand] of entries) {
+      if (hostDots.includes(`.${off}.`)) {
+        found = sig("brand_prefix", `Starts with ${brand}'s address but is another site`, `'${u.host}' begins with ${off}, but the site it opens is ${reg}.`, "high");
         break;
       }
     }
-    if (!look) {
+    for (const [off, brand] of found ? [] : entries) {
+      const offLabel = off.split(".")[0];
+      if (sk === skeleton(off) || (skeleton(label) === skeleton(offLabel) && label !== offLabel)) {
+        found = sig("lookalike_domain", `Imitates ${brand}'s official domain`, `'${u.host}' looks like ${off} but is a different domain.`, "high");
+        break;
+      }
+    }
+    for (const [off, brand] of found ? [] : entries) {
+      const kind = typoKind(label, off.split(".")[0]);
+      if (kind) {
+        found = sig("typo_domain", `Misspells ${brand}'s official domain`, `'${u.host}' is ${off} with ${kind}, a typing error scammers register on purpose.`, "high");
+        break;
+      }
+    }
+    for (const [off, brand] of found ? [] : entries) {
+      if (label === off.split(".")[0]) {
+        found = sig("brand_other_ending", `Same name as ${brand}'s site, different ending`, `${brand}'s official domain is ${off}; ${reg} is a different site that anyone could register.`, "medium");
+        break;
+      }
+    }
+    if (found) out.push(found);
+    else {
       const tokens = skeleton(u.host).split(/[.\-_0-9]+/).filter(Boolean);
       for (const b of BRANDS) {
         const hit = b.keywords.find((k) => tokens.includes(k) || (k.length >= 5 && tokens.some((t) => t.includes(k))));
@@ -83,7 +150,7 @@ export function urlSignals(u: ExtractedUrl): Signal[] {
       }
     }
   }
-  if (!official && !u.isIp && !SHORTENERS.has(reg)) {
+  if (!OFFICIALS.has(reg) && !u.isIp && !SHORTENERS.has(reg)) {
     const name = u.suffix ? u.hostAscii.slice(0, -(u.suffix.length + 1)) : u.hostAscii;
     let found = BAIT_WORDS.filter((w) => name.toLowerCase().includes(w));
     found = found.filter((w) => !found.some((o) => o !== w && o.includes(w)));
@@ -104,6 +171,9 @@ export function urlSignals(u: ExtractedUrl): Signal[] {
   if (u.scheme === "http") out.push(sig("no_https", "Not encrypted (http://)", "Anything typed on this page can be read by others on the network.", "low"));
   if (u.port !== null && u.port !== 80 && u.port !== 443) {
     out.push(sig("unusual_port", `Unusual port :${u.port}`, "Normal websites do not need a port number in the link.", "low"));
+  }
+  if ((reg === "wa.me" || reg === "whatsapp.com") && u.url.split(u.hostAscii).slice(1).join(u.hostAscii).includes("/")) {
+    out.push(sig("whatsapp_chat_link", "Opens a WhatsApp chat", "This link starts a WhatsApp chat with a number. Check who it is before writing.", "info"));
   }
   return out;
 }

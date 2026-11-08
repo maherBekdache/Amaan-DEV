@@ -71,9 +71,10 @@ class Settings(BaseSettings):
     # Speech-to-text for WhatsApp voice notes: a local OpenAI-style /v1/audio/transcriptions server.
     stt_url: str | None = None
     stt_model: str = ""
-    # Lookyloo (optional sandbox that opens the page and records everything it loads)
-    lookyloo_url: str | None = None
-    lookyloo_timeout_s: float = 60.0
+    # Expansion worker (sandbox layer L5, sandbox/expander): its Unix socket in the volume shared
+    # with this container. Empty = off (links are then followed only inside URL.vet).
+    expander_socket: str | None = None
+    expander_timeout_s: float = 30.0
 
     # Phone app gateway (hybrid mode): LAN address shown in the pairing QR, and
     # the secret the app must send. Both set by the scripts; off when empty.

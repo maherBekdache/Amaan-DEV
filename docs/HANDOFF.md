@@ -1,6 +1,6 @@
 # Amaan: project handoff (for the next developer or AI agent)
 
-*Written 24 Oct 2026. Repo: https://github.com/maherBekdache/Amaan-DEV (branch `main`).*
+*Written 24 Oct 2026, updated 8 Nov 2026 (link security and sandbox, section 11). Repo: https://github.com/maherBekdache/Amaan-DEV (branch `main`).*
 Read this file first, then `docs/DECISIONS.md` (why things are the way they are).
 
 ---
@@ -18,7 +18,7 @@ Read this file first, then `docs/DECISIONS.md` (why things are the way they are)
   - wants each milestone committed
 
 ## 2. Hard rules (from the owner, non-negotiable)
-1. **Never open, fetch or render an untrusted URL** on the host machine or in our backend. Only URL.vet's containerized headless Chrome (and Lookyloo's sandbox, approved later) touch untrusted destinations. Anything decoded from a QR code is untrusted.
+1. **Never open, fetch or render an untrusted URL** on the host machine or in our backend. Only an approved, disposable, network-restricted sandbox opens untrusted links: URL.vet's containerized headless Chrome and Amaan's expansion worker (`sandbox/`, approved 8 Nov 2026). Both reach the internet only through the egress proxy. Anything decoded from a QR code is untrusted.
 2. **No user content leaves the machine.** No third-party cloud APIs unless the owner approves them.
    - Approved so far: URL.vet; OpenPhish/URLhaus lists; Google Safe Browsing (hash prefixes only); VirusTotal (lookup only); urlscan.io (private scans).
    - Each of these receives **links only**.
@@ -37,8 +37,9 @@ Other standing rules:
 | M1 | Links + QR (text, drop, upload, webcam), URL.vet, explainable verdict | ✅ done |
 | M2 | Lebanese voice-note transcription (Whisper) + anti-spoofing + scam-intent stubs | ❌ not started (owner: "leave model/Whisper/GPU out for now") |
 | M3 | WhatsApp: FEASIBILITY.md, Baileys behind a flag, chat-export import, drag-drop matrix doc | ✅ done (the matrix table in `docs/FEASIBILITY.md` must be filled by hand on Windows) |
-| + | Cross-platform app (Expo), multi-source check, AI summary + Lookyloo, WhatsApp defaults (unknown numbers), phone WhatsApp tab, "check it yourself" links, testing guide, Word doc | ✅ done (prototype) |
+| + | Cross-platform app (Expo), multi-source check, AI summary, WhatsApp defaults (unknown numbers), phone WhatsApp tab, "check it yourself" links, testing guide, Word doc | ✅ done (prototype) |
 | + | WhatsApp calls (unknown caller, one-ring warning), voice notes via a local speech-to-text hook, AI summary on the phone, mobile permissions research | ✅ done (Oct 26) |
+| + | Link security: typo and hidden-redirect rules, expansion worker, egress proxy, URL.vet Chrome isolated, Lookyloo removed (D19, `docs/LINK_SECURITY.md`) | ✅ code done (Nov 8); Docker build to verify on Windows |
 
 ## 4. Architecture
 ```
@@ -51,8 +52,10 @@ Other standing rules:
                         │ extract → local rules → scoring      │
                         │ reputation aggregator, AI, WhatsApp  │
                         └──┬──────────┬──────────┬──────────┬──┘
-             URL.vet sandbox    Lookyloo      Ollama (host)   whatsapp-bridge (Node/Baileys)
-             (headless Chrome)  (sandbox)     qwen2.5:3b      watches chosen chats, never sends
+             URL.vet sandbox    expansion     Ollama (host)   whatsapp-bridge (Node/Baileys)
+             (headless Chrome)  worker (Unix  qwen2.5:3b      watches chosen chats, never sends
+                  │             socket)
+                  └──── egress proxy (ports 80/443, public addresses only) ──► internet
              + Safe Browsing / VirusTotal / urlscan.io / OpenPhish+URLhaus lists
 ```
 
@@ -64,22 +67,23 @@ Other standing rules:
 | Shared core | `packages/core/` | TypeScript (tldts, punycode, fflate) | port of backend rules; **parity-tested** |
 | WhatsApp bridge | `whatsapp-bridge/` | Node 22, `baileys` 7.0.0-rc14 (MIT) | compose profile `whatsapp` |
 | URL.vet | cloned to `third_party/urlvet` (git-ignored) | Go, Docker (AGPL, unmodified) | pinned `a6b54c29b73a053b916805173fba352e9be0204c` |
-| Lookyloo | cloned to `third_party/lookyloo` | Python, Docker (BSD-3, unmodified code) | pinned `a37506c4ffc063464e016ecff8cfa79f7e65461d`; built with `infra/lookyloo/Dockerfile` (adds tzdata) |
+| Sandbox | `sandbox/egress`, `sandbox/expander` | Python 3.11 (stdlib + httpx) | egress proxy and expansion worker; internal Docker network; optional gVisor (`AMAAN_SANDBOX_RUNTIME=runsc`) |
 | Infra/scripts | `infra/`, `scripts/amaan.ps1`, `scripts/amaan.sh`, `*.bat` | Docker Compose | ports bound to 127.0.0.1 except the phone gateway |
 
 ### Backend modules
 - `main.py`
-  - App, lifespan (UrlVetClient, Reputation, Analyzer, OllamaProvider, LookylooClient) and routes.
+  - App, lifespan (UrlVetClient, Reputation, Analyzer, OllamaProvider, ExpanderClient) and routes.
   - **guard middleware:** host allowlist (anti DNS-rebinding), size limits, security headers/CSP.
   - `/gateway/*` paths need `Authorization: Bearer <AMAAN_PHONE_TOKEN>` (CORS `*`).
 - `analyzer.py`
-  - `LinkBudget`; URL.vet and reputation run concurrently.
+  - `LinkBudget`; URL.vet, reputation and the expansion worker run concurrently.
+  - Links hidden inside another link (`?url=`, Google AMP) become their own items.
   - `_finish` builds `Evidence`; each URL item also gets `lookups`.
 - `extract/`: `urls.py` (multilingual link finding, defang/refang, punycode), `qr.py`, `payloads.py` (Wi-Fi, SMS, tel, crypto…), `html.py`.
 - `scoring/`
-  - `local_rules.py`: brand-in-domain, bait domains, userinfo trick, lookalikes, TLDs, hidden characters.
+  - `local_rules.py`: brand-in-domain, brand prefix, other ending, typo domains (keyboard slips), hidden redirects, bait domains, userinfo trick, lookalikes, TLDs, hidden characters.
   - `text_cues.py`: weighted phrase cues from `data/cues.json`, Arabizi consonant skeleton, combo "scam script" at weight ≥ 4.
-  - `aggregate.py`: levels; an unchecked link is never Low unless *Verified*; ≥ 2 cues + a flagged link → High.
+  - `aggregate.py`: `expansion_signals` (redirect domains, page asks for code/password/card, downloads); levels; an unchecked link is never Low unless *Verified*; ≥ 2 cues + a flagged link → High.
 - `reputation/`
   - `feeds.py`: OpenPhish + URLhaus, downloaded every 6 h, checked locally.
   - `safebrowsing.py`: v5 hash prefixes.
@@ -89,7 +93,7 @@ Other standing rules:
 - `ai/`
   - `provider.py`: Ollama `/api/chat` with a JSON schema.
   - `reasoner.py`: prompt with `<untrusted>` fencing; output `{risk, reasoning, red_flags, advice}`; advisory only.
-- `clients/`: `urlvet.py` (`GET /api/v1/analyze?url=`, 20/min), `lookyloo.py` (submit → status → ai_export).
+- `clients/`: `urlvet.py` (`GET /api/v1/analyze?url=`, 20/min), `expander.py` (Unix socket, `POST /expand`, 5-minute cache).
 - `api/whatsapp.py`
   - `/import/chat`
   - bridge proxy: `/whatsapp/status, link, logout, chats, selection, alerts`
@@ -132,7 +136,7 @@ Other standing rules:
 - **Check it yourself:** 12 clickable rating sites (web, under *Why?*; phone, under each link).
 
 **AI**
-- AI summary (what the message is, what each tool found, what to do), with Lookyloo's page capture for links.
+- AI summary (what the message is, what each tool found, what to do), with what the expansion worker read on the page (no browser, scripts not run).
 - `AMAAN_AI_PROVIDER=ollama` (local demo) or `openai` (any OpenAI-compatible server). A non-local model gets findings only (D17).
 
 **WhatsApp**
@@ -158,19 +162,19 @@ Other standing rules:
 |---|---|
 | Start web app only | `start.bat` → http://localhost:8000 |
 | Start + WhatsApp bridge | `start-whatsapp.bat` |
-| Start everything (WhatsApp, Lookyloo, phone gateway on LAN :8001) | `start-everything.bat` |
+| Start everything (WhatsApp, phone gateway on LAN :8001) | `start-everything.bat` |
 | Stop | `stop.bat` |
 | All tests | `.\scripts\amaan.ps1 test` (pytest + frontend typecheck + core vitest) |
 | Dev servers (hot reload) | `.\scripts\amaan.ps1 dev` / `dev -Mock` (no Docker; fake URL.vet) |
 | Phone app | `cd app; npm ci; npx expo start -c` → scan the QR (iPhone Camera / Expo Go) → in the app **Connect to computer** → scan the code in 📱 Phone app tab |
 | Web/desktop app | press `w` in the Expo terminal; pair with **Copy pairing link** |
-| macOS/Linux | `./scripts/amaan.sh up|down|test|dev [--mock]` with flags `--whatsapp --lookyloo --phone` |
+| macOS/Linux | `./scripts/amaan.sh up|down|test|dev [--mock]` with flags `--whatsapp --phone` |
 
 **Settings** (`.env` at repo root, git-ignored; template `.env.example`):
 - Keys: `AMAAN_SAFE_BROWSING_KEY`, `AMAAN_VIRUSTOTAL_KEY`, `AMAAN_URLSCAN_KEY`, `AMAAN_URLHAUS_KEY`, `AMAAN_FEEDS_ENABLED`.
 - AI: `AMAAN_AI_MODEL` (default `qwen2.5:3b`), `AMAAN_AI_URL` (`host.docker.internal:11434`).
 - Generated by the scripts: `AMAAN_BRIDGE_TOKEN`, `AMAAN_PHONE_URL`, `AMAAN_PHONE_TOKEN`.
-- Others: `AMAAN_ALLOWED_HOSTS`, `AMAAN_LOOKYLOO_URL`.
+- Others: `AMAAN_ALLOWED_HOSTS`, `AMAAN_SANDBOX_RUNTIME` (`runc` default, `runsc` for gVisor).
 
 **Ports:**
 
@@ -179,7 +183,8 @@ Other standing rules:
 | Amaan | 127.0.0.1:8000 |
 | Phone gateway | 0.0.0.0:8001 (`docker-compose.phone.yml`) |
 | URL.vet | 127.0.0.1:8080 (network `amaan-urlvet`) |
-| Lookyloo | 127.0.0.1:5100 |
+| Expansion worker | none (Unix socket in the `expander_sock` volume) |
+| Egress proxy | 3128 (internal networks only) |
 | Bridge | 8090 (internal) |
 | Ollama | 11434 (host) |
 | Expo | 8081 |
@@ -198,8 +203,7 @@ Other standing rules:
 
 ## 7. Known pitfalls (learned the hard way)
 - **PowerShell 5.1:** native stderr plus `$ErrorActionPreference='Stop'` aborts. Use the `Invoke-Checked` / `Test-Native` helpers in `amaan.ps1`.
-- **CRLF:** Git for Windows broke Lookyloo's shebangs. Third-party repos are cloned with `core.autocrlf=false` (`Get-Pinned` / `get_pinned`, auto-repair).
-- **Lookyloo** at the pinned commit needs system `tzdata` on Linux (our Dockerfile adds it).
+- **CRLF:** Git for Windows broke third-party shell scripts (seen with Lookyloo, now removed). Third-party repos are cloned with `core.autocrlf=false` (`Get-Pinned` / `get_pinned`, auto-repair).
 - **Expo:** keep SDK 57 until App Store Expo Go supports 58; use `npm ci` (not `npm install`) so the lockfile isn't rewritten and `git pull` isn't blocked.
 - **Cloud dev sandbox:**
   - no Docker daemon, so Docker builds can't be tested there
@@ -218,7 +222,7 @@ Other standing rules:
 - start scripts after the PS 5.1 and CRLF fixes
 
 **Not yet verified:**
-- Lookyloo full build after the tzdata fix
+- the sandbox images (`egress`, `expander`) and URL.vet Chrome with the new proxy flags (Nov 8)
 - a real Ollama model
 - real API keys
 - a real Baileys pairing on the newest code
@@ -228,7 +232,7 @@ Other standing rules:
 ## 9. Plan / next steps (priority order)
 1. **Stabilize for the demo:**
    - owner runs `docs/TESTING.md` end to end
-   - fix whatever fails (Lookyloo, Ollama, firewall)
+   - fix whatever fails (sandbox build, Ollama, firewall)
    - fill the drag-drop matrix
    - verify `brands.json`
    - update `docs/DEMO.md` to the 7-minute script (web, WhatsApp live, phone)
@@ -250,7 +254,7 @@ Other standing rules:
    - optional cloud LLM that receives evidence only (needs approval)
 6. **M2 voice notes:** Whisper fine-tuned for Lebanese speech; anti-spoofing and scam-intent stubs; input via the share sheet.
 
-Details: `docs/MOBILE_PERMISSIONS.md`, `docs/FUTURE.md`, `docs/DECISIONS.md` (D1–D18), `docs/FEASIBILITY.md`, `docs/TESTING.md`, `docs/DEVELOPMENT.md`, `docs/Amaan_Documentation.docx`.
+Details: `docs/MOBILE_PERMISSIONS.md`, `docs/FUTURE.md`, `docs/DECISIONS.md` (D1–D19), `docs/FEASIBILITY.md`, `docs/TESTING.md`, `docs/DEVELOPMENT.md`, `docs/Amaan_Documentation.docx`.
 
 ## 10. How to work on this repo (for an agent)
 - Before changing behavior, check the four hard rules.
@@ -259,7 +263,20 @@ Details: `docs/MOBILE_PERMISSIONS.md`, `docs/FUTURE.md`, `docs/DECISIONS.md` (D1
   - `packages/core`: `npm test && npm run typecheck`
   - `frontend`: `npm run typecheck && npm run build`
   - `app`: `npx tsc --noEmit` and `EXPO_OFFLINE=1 npx expo export -p web`
+  - `sandbox`: `backend/.venv/bin/python -m pytest sandbox/tests`
   - `whatsapp-bridge`: `node --test`
 - If you change a rule in the backend, port it to `packages/core` and extend `test/parity.test.ts`.
 - In `app/`, follow `app/AGENTS.md`: use `npx expo install` for native packages, and check the Expo docs for SDK 57.
 - Keep the UI simple and the docs short. Give the owner exact commands, not long explanations.
+
+## 11. Update, 8 Nov 2026: link security and sandbox
+- **Decisions this week:** framework confirmed as React Native (Expo), which resolves the earlier
+  Flutter mention; budget stays at the approved \$200, so the sandbox is self-hosted (no paid sandbox
+  service); hard rule 1 reworded (above); Lookyloo removed (D19).
+- **New rules:** typo domains (keyboard slips of a brand), brand prefix (`whish.money.example.com`),
+  brand on another ending, hidden redirect inside a link (`google.com/url?q=...`). Same rules in
+  `packages/core`; 23 shared cases in `backend/tests/data/link_cases.json`.
+- **New sandbox:** expansion worker (L5) and egress proxy; URL.vet Chrome moved to an internal network
+  behind the proxy. Design, layers and residual risks: `docs/LINK_SECURITY.md`.
+- **Still to do:** build and run the images on Windows (`docs/TESTING.md` section 4); trace view for the
+  demo; Firecracker trial in spring.

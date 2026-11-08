@@ -1,0 +1,28 @@
+{
+  "_note": "Link rules shared by the backend (tests/test_link_rules.py) and the phone (packages/core/test/parity.test.ts). Both must give these exact answers. 'expect' = signal ids that must appear, 'absent' = ids that must not, 'inner' = links found inside the link (open redirects).",
+  "cases": [
+    {"link": "whsh.money", "expect": ["typo_domain"], "absent": ["brand_in_domain"]},
+    {"link": "whiish.money", "expect": ["typo_domain"]},
+    {"link": "whihs.money", "expect": ["typo_domain"]},
+    {"link": "wjish.money", "expect": ["typo_domain"]},
+    {"link": "faceboook.com", "expect": ["typo_domain"]},
+    {"link": "netfilx.com", "expect": ["typo_domain"]},
+    {"link": "touxh.com.lb", "expect": ["typo_domain"]},
+    {"link": "blombnak.com", "expect": ["typo_domain"]},
+    {"link": "which.com", "absent": ["typo_domain", "lookalike_domain", "brand_in_domain"]},
+    {"link": "finance.com", "absent": ["typo_domain"]},
+    {"link": "cloud.com", "absent": ["typo_domain"]},
+    {"link": "tough.com", "absent": ["typo_domain"]},
+    {"link": "apply.com", "absent": ["typo_domain"]},
+    {"link": "paypa1.com", "expect": ["lookalike_domain"], "absent": ["typo_domain"]},
+    {"link": "whish.com", "expect": ["brand_other_ending"], "absent": ["brand_in_domain"]},
+    {"link": "omt.com.lb.secure-pay.xyz", "expect": ["brand_prefix"], "absent": ["brand_in_domain"]},
+    {"link": "https://l.facebook.com/l.php?u=https%3A%2F%2Fwhish-pay.xyz%2Fx&h=1", "expect": ["hidden_redirect"], "absent": ["official_domain"], "inner": ["https://whish-pay.xyz/x"]},
+    {"link": "https://www.google.com/url?q=https://evil-site.com/a", "expect": ["hidden_redirect"], "inner": ["https://evil-site.com/a"]},
+    {"link": "https://www.google.com/amp/s/evil-site.com/p", "expect": ["hidden_redirect"], "inner": ["https://evil-site.com/p"]},
+    {"link": "https://www.google.com/travel/clk?pc=abc&pcurl=https%3A%2F%2Fphish-site.net%2Flogin", "expect": ["hidden_redirect"], "inner": ["https://phish-site.net/login"]},
+    {"link": "https://omt.com.lb/redirect?next=/home", "expect": ["official_domain"], "absent": ["hidden_redirect"], "inner": []},
+    {"link": "https://whish.money/?ref=https://whish.money/a", "expect": ["official_domain"], "inner": []},
+    {"link": "https://wa.me/96170123456", "expect": ["whatsapp_chat_link"]}
+  ]
+}

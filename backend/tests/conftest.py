@@ -82,3 +82,13 @@ def urlvet_returns(client, mapping: dict[str, dict]):
         return httpx.Response(200, json=report("Safe", 90))
 
     client.mock.get(f"{URLVET}/api/v1/analyze").mock(side_effect=handler)
+
+
+@pytest.fixture
+def client_off():
+    """API client with URL.vet switched off: only Amaan's own rules count."""
+    with respx.mock(assert_all_called=False) as mock:
+        mock.route(host="testserver").pass_through()
+        mock.get(f"{URLVET}/api/v1/analyze").mock(side_effect=httpx.ConnectError("off"))
+        with TestClient(app) as c:
+            yield c

@@ -6,14 +6,13 @@
   .\scripts\amaan.ps1 up            # URL.vet + Amaan, then open http://localhost:8000
   .\scripts\amaan.ps1 up -UrlvetUi  # also start URL.vet's own web UI on :3000
   .\scripts\amaan.ps1 up -WhatsApp  # also start the optional WhatsApp bridge
-  .\scripts\amaan.ps1 up -Lookyloo  # also start Lookyloo (opens links in a sandbox for the AI opinion)
   .\scripts\amaan.ps1 up -Phone     # let the phone app (same Wi-Fi) use this computer's link checker
   .\scripts\amaan.ps1 status
   .\scripts\amaan.ps1 down
   .\scripts\amaan.ps1 update-urlvet # move URL.vet to the pinned ref again
   .\scripts\amaan.ps1 dev           # hot-reload dev: backend :8000 + frontend :5173 (URL.vet from Docker)
   .\scripts\amaan.ps1 dev -Mock     # same, with a FAKE URL.vet (no Docker needed; never for the demo)
-  .\scripts\amaan.ps1 test          # backend tests + frontend type check + phone rules (packages/core)
+  .\scripts\amaan.ps1 test          # backend + sandbox tests, frontend type check, phone rules (packages/core)
 #>
 param(
   [Parameter(Position = 0)]
@@ -21,7 +20,6 @@ param(
   [string]$Command = "up",
   [switch]$UrlvetUi,
   [switch]$WhatsApp,
-  [switch]$Lookyloo,
   [switch]$Phone,
   [switch]$Mock
 )
@@ -29,9 +27,6 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $UrlvetDir = Join-Path $Root "third_party\urlvet"
-$LookyDir = Join-Path $Root "third_party\lookyloo"
-$LookyRepo = "https://github.com/Lookyloo/lookyloo.git"
-$LookyRef = if ($env:LOOKYLOO_REF) { $env:LOOKYLOO_REF } else { "a37506c4ffc063464e016ecff8cfa79f7e65461d" }
 $UrlvetRepo = "https://github.com/urlvet/urlvet.git"
 # Pinned so the demo does not change under us. Bump deliberately.
 $UrlvetRef = if ($env:URLVET_REF) { $env:URLVET_REF } else { "a6b54c29b73a053b916805173fba352e9be0204c" }
@@ -72,12 +67,6 @@ function Get-UrlvetCompose {
     "-f", (Join-Path $Root "infra\urlvet\docker-compose.amaan.yml"))
 }
 
-function Get-LookyCompose {
-  @("compose", "-p", "lookyloo",
-    "-f", (Join-Path $LookyDir "docker-compose.yml"),
-    "-f", (Join-Path $Root "infra\lookyloo\docker-compose.amaan.yml"))
-}
-
 # Third-party code runs in Linux containers: keep its line endings exactly as
 # upstream (Git for Windows would turn "#!/usr/bin/env python3" into "python3\r").
 function Get-Pinned([string]$repo, [string]$dir, [string]$ref) {
@@ -92,13 +81,12 @@ function Get-Pinned([string]$repo, [string]$dir, [string]$ref) {
   Invoke-Checked git @("-C", $dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", $ref)
 }
 
-function Start-Lookyloo {
-  if (-not (Test-Path $LookyDir)) { Write-Host "==> Cloning Lookyloo (BSD-3, kept unmodified in third_party/)" -ForegroundColor Cyan }
-  Get-Pinned $LookyRepo $LookyDir $LookyRef
-  Copy-Item (Join-Path $Root "infra\lookyloo\generic.json") (Join-Path $LookyDir "config\generic.json") -Force
-  Copy-Item (Join-Path $Root "infra\lookyloo\modules.json") (Join-Path $LookyDir "config\modules.json") -Force
-  Write-Host "==> Building and starting Lookyloo (first time: 10-20 minutes)" -ForegroundColor Cyan
-  Invoke-Checked docker ((Get-LookyCompose) + @("up", "-d", "--build"))
+# Sandbox runtime for the containers that open untrusted links (runc, or runsc = gVisor).
+# Read from .env so URL.vet's compose project (which has its own .env) gets it too.
+function Set-SandboxRuntime {
+  $rootEnv = Join-Path $Root ".env"
+  $line = if (Test-Path $rootEnv) { Select-String -Path $rootEnv -Pattern "^AMAAN_SANDBOX_RUNTIME=(.+)$" | Select-Object -Last 1 }
+  $env:AMAAN_SANDBOX_RUNTIME = if ($line) { $line.Matches[0].Groups[1].Value.Trim() } else { "runc" }
 }
 
 function Set-EnvLine([string]$name, [string]$value) {
@@ -182,14 +170,14 @@ switch ($Command) {
 
   "up" {
     Invoke-Setup
-    $services = @("backend", "chrome", "valkey")
+    Set-SandboxRuntime
+    $services = @("backend", "chrome", "valkey", "egress")
     if ($UrlvetUi) { $services += "web" }
     Write-Host "==> Building and starting URL.vet ($($services -join ', '))" -ForegroundColor Cyan
     Invoke-Checked docker ((Get-UrlvetCompose) + @("up", "-d", "--build") + $services)
     Push-Location $Root
-    if ($Lookyloo) { Start-Lookyloo }
     $profileArgs = if ($WhatsApp) { @("--profile", "whatsapp") } else { @() }
-    Write-Host "==> Building and starting Amaan$(if ($WhatsApp) { ' + WhatsApp bridge' })" -ForegroundColor Cyan
+    Write-Host "==> Building and starting Amaan$(if ($WhatsApp) { ' + WhatsApp bridge' }) (sandbox runtime: $env:AMAAN_SANDBOX_RUNTIME)" -ForegroundColor Cyan
     $files = @("-f", "docker-compose.yml")
     if ($Phone) { Enable-Phone; $files += @("-f", "docker-compose.phone.yml") }
     try { Invoke-Checked docker (@("compose") + $files + $profileArgs + @("up", "-d", "--build")) } finally { Pop-Location }
@@ -206,8 +194,8 @@ switch ($Command) {
   "down" {
     Push-Location $Root
     try { Invoke-Checked docker @("compose", "--profile", "whatsapp", "down") } finally { Pop-Location }
-    if (Test-Path $UrlvetDir) { Invoke-Checked docker ((Get-UrlvetCompose) + @("down")) }
-    if (Test-Path $LookyDir) { Invoke-Checked docker ((Get-LookyCompose) + @("down")) }
+    if (Test-Path $UrlvetDir) { Set-SandboxRuntime; Invoke-Checked docker ((Get-UrlvetCompose) + @("down")) }
+    Test-Native docker @("compose", "-p", "lookyloo", "down") | Out-Null  # Lookyloo was removed (D19); stop an old copy if any
   }
 
   "status" {
@@ -249,7 +237,10 @@ switch ($Command) {
   "test" {
     $py = Initialize-DevEnv
     Push-Location (Join-Path $Root "backend")
-    try { Invoke-Checked $py @("-m", "pytest", "-q") } finally { Pop-Location }
+    try {
+      Invoke-Checked $py @("-m", "pytest", "-q")
+      Invoke-Checked $py @("-m", "pytest", "-q", "..\sandbox\tests")
+    } finally { Pop-Location }
     Push-Location (Join-Path $Root "frontend")
     try { Invoke-Checked npm @("run", "typecheck") } finally { Pop-Location }
     Push-Location (Join-Path $Root "packages\core")

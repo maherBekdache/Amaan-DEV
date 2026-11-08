@@ -171,6 +171,55 @@ export function extractUrls(text: string, limit = 50): { urls: ExtractedUrl[]; f
   return { urls: unique.slice(0, limit), flags, cleaned, truncated: unique.length > limit };
 }
 
+// A query value that is itself a link: "https://…", "//host/…" or "www.…".
+const LINK_VALUE = /^(?:https?:)?\/\/|^www\./i;
+
+function unquote(v: string): string {
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+}
+const decodePart = (v: string) => unquote(v.replace(/\+/g, " ")); // a query value, as parse_qsl reads it
+
+/**
+ * Links carried inside another link, which forwards the browser to them (open
+ * redirects such as google.com/url?q=…, l.facebook.com/l.php?u=…, Google AMP
+ * /amp/s/<host>/…). Only the text is read; nothing is fetched. Same as the backend.
+ */
+export function nestedLinks(u: ExtractedUrl, limit = 3): ExtractedUrl[] {
+  const afterScheme = u.url.replace(/^[a-z][a-z0-9+.\-]*:\/\//i, "");
+  const cut = afterScheme.search(/[/?#]/);
+  const rest = cut === -1 ? "" : afterScheme.slice(cut);
+  const noFragment = rest.split("#")[0];
+  const q = noFragment.indexOf("?");
+  const path = q === -1 ? noFragment : noFragment.slice(0, q);
+  const query = q === -1 ? "" : noFragment.slice(q + 1);
+  const values: string[] = [];
+  for (const pair of query.split("&")) {
+    const eq = pair.indexOf("=");
+    if (eq === -1) continue;
+    const value = decodePart(pair.slice(eq + 1));
+    if (value) values.push(value);
+  }
+  const amp = /^\/amp\/s\/(.+)/.exec(path);
+  if (amp) values.push("https://" + amp[1]);
+  const out: ExtractedUrl[] = [];
+  const seen = new Set<string>();
+  for (let v of values) {
+    v = v.trim();
+    if (v.toLowerCase().includes("%3a") || v.toLowerCase().includes("%2f")) v = unquote(v).trim(); // encoded twice
+    if (!LINK_VALUE.test(v)) continue;
+    const n = parseCandidate(v.startsWith("//") ? "https:" + v : v);
+    if (n && n.registrable !== u.registrable && !seen.has(n.url)) {
+      seen.add(n.url);
+      out.push(n);
+    }
+  }
+  return out.slice(0, limit);
+}
+
 /** Safe to show: not clickable, not auto-linked. */
 export function defang(value: string): string {
   let v = value.replace(/^http/i, "hxxp").replace(/^ftp/i, "fxp");

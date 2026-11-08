@@ -36,6 +36,34 @@ export interface UrlVetResult {
   mock: boolean;
 }
 
+export interface ExpansionHop {
+  url: string;
+  status: number | null;
+  via: string | null;
+}
+
+export interface Download {
+  content_type: string;
+  size: number;
+  sha256: string;
+  filename: string;
+  complete: boolean;
+}
+
+/** What Amaan's expansion worker saw when it followed the link (no browser, scripts not run). */
+export interface Expansion {
+  status: "ok" | "unavailable" | "error";
+  message: string;
+  hops: ExpansionHop[];
+  final_url: string | null;
+  stopped: string;
+  title: string;
+  asks_for: string[];
+  human_check: boolean;
+  download: Download | null;
+  elapsed_ms: number;
+}
+
 export interface SourceResult {
   source: string;
   kind: string;
@@ -54,6 +82,7 @@ export interface AnalyzedItem {
   host_ascii: string | null;
   details: Record<string, string>;
   urlvet: UrlVetResult | null;
+  expansion?: Expansion | null;
   sources: SourceResult[];
   signals: Signal[];
   risk_level: RiskLevel;
@@ -86,7 +115,7 @@ export interface Health {
   urlvet: { reachable: boolean; mock: boolean; base_url: string; latency_ms: number };
   qr_decoders: Record<string, boolean>;
   ai?: { available: boolean; model: string | null; provider: string | null };
-  lookyloo?: { enabled: boolean; reachable: boolean };
+  expander?: { enabled: boolean; reachable: boolean };
 }
 
 export interface Pairing {

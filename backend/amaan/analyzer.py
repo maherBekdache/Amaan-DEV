@@ -3,20 +3,37 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from amaan.clients.expander import ExpanderClient
 from amaan.clients.urlvet import UrlVetClient
 from amaan.config import Settings
 from amaan.extract.html import parse_html
 from amaan.extract.payloads import classify_payload
 from amaan.extract.qr import QRResult
-from amaan.extract.urls import ExtractedUrl, defang, extract_urls, parse_candidate
+from amaan.extract.urls import (
+    ExtractedUrl,
+    defang,
+    extract_urls,
+    nested_links,
+    parse_candidate,
+)
 from amaan.lookups import lookup_links
 from amaan.reputation.base import SourceResult
 from amaan.schemas import (
-    AnalyzedItem, Evidence, InputType, ItemKind, ItemSource, Signal, TextRequest, UrlVetResult, UrlVetStatus,
+    AnalyzedItem,
+    Evidence,
+    Expansion,
+    InputType,
+    ItemKind,
+    ItemSource,
+    Signal,
+    TextRequest,
+    UrlVetResult,
+    UrlVetStatus,
 )
 from amaan.scoring import aggregate, local_rules, text_cues
 
@@ -32,6 +49,7 @@ class _Pending:
     check_url: str | None = None
     signals: list[Signal] = field(default_factory=list)
     urlvet: UrlVetResult | None = None
+    expansion: Expansion | None = None
     sources: list[SourceResult] = field(default_factory=list)
 
 
@@ -42,6 +60,11 @@ def _url_pending(u: ExtractedUrl, source: ItemSource) -> _Pending:
     )
 
 
+def _url_and_inner(u: ExtractedUrl, source: ItemSource) -> list[_Pending]:
+    """A link, then any link it carries inside it (an open redirect's real destination)."""
+    return [_url_pending(u, source)] + [_url_pending(n, source) for n in nested_links(u)]
+
+
 @dataclass
 class LinkBudget:
     """How many new links may still go to URL.vet, plus results already fetched."""
@@ -50,6 +73,7 @@ class LinkBudget:
     remaining: int = -1
     cache: dict[str, UrlVetResult] = field(default_factory=dict)
     sources: dict[str, list[SourceResult]] = field(default_factory=dict)
+    expansions: dict[str, Expansion | None] = field(default_factory=dict)
     queued: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
@@ -58,19 +82,31 @@ class LinkBudget:
 
 
 def link_key(url: str) -> str:
-    """Same link regardless of scheme, case or a trailing slash."""
-    return url.lower().split("://", 1)[-1].rstrip("/")
+    """Same link regardless of scheme, case or a trailing slash. Only a leading scheme is
+    removed: a link can carry another link ("…?q=https://…") that must keep its own key."""
+    return re.sub(r"^[a-z][a-z0-9+.\-]*://", "", url.lower()).rstrip("/")
 
 
 async def _no_sources() -> list[SourceResult]:
     return []
 
 
+async def _no_expansion() -> None:
+    return None
+
+
 class Analyzer:
-    def __init__(self, settings: Settings, urlvet: UrlVetClient, reputation=None) -> None:
+    def __init__(self, settings: Settings, urlvet: UrlVetClient, reputation=None,
+                 expander: ExpanderClient | None = None) -> None:
         self.s = settings
         self.urlvet = urlvet
         self.reputation = reputation  # amaan.reputation.aggregator.Reputation (optional)
+        self.expander = expander  # sandbox layer L5 (optional)
+
+    def _expand(self, url: str):
+        if self.expander is None or not self.expander.enabled:
+            return _no_expansion()
+        return self.expander.expand(url if "://" in url else "http://" + url)
 
     async def _check_urls(self, pending: list[_Pending], warnings: list[str],
                           budget: LinkBudget | None = None) -> int:
@@ -99,21 +135,24 @@ class Analyzer:
         for p in to_send:
             unique.setdefault(link_key(p.check_url), p)
 
-        # URL.vet and every reputation source run at the same time.
-        results, source_lists = await asyncio.gather(
+        # URL.vet, every reputation source and the expansion worker run at the same time.
+        results, source_lists, expansions = await asyncio.gather(
             asyncio.gather(*(self.urlvet.analyze(p.check_url) for p in unique.values())),
             asyncio.gather(*((self.reputation.check(p.check_url) if self.reputation else _no_sources())
                              for p in unique.values())),
+            asyncio.gather(*(self._expand(p.check_url) for p in unique.values())),
         )
-        for k, r, srcs in zip(unique.keys(), results, source_lists):
+        for k, r, srcs, exp in zip(unique.keys(), results, source_lists, expansions):
             budget.cache[k] = r
             budget.sources[k] = srcs
+            budget.expansions[k] = exp
             budget.queued.discard(k)
         for p in to_send:
             p.urlvet = budget.cache[link_key(p.check_url)].model_copy()
         for p in pending:
             if p.check_url and link_key(p.check_url) in budget.sources:
                 p.sources = budget.sources[link_key(p.check_url)]
+                p.expansion = budget.expansions.get(link_key(p.check_url))
         return int((time.perf_counter() - t0) * 1000)
 
     def _finish(self, input_type: InputType, pending: list[_Pending], message_signals: list[Signal],
@@ -124,10 +163,12 @@ class Analyzer:
             if p.urlvet:
                 signals = aggregate.urlvet_signals(p.urlvet) + signals
             signals = aggregate.source_signals(p.sources) + signals
+            signals += aggregate.expansion_signals(p.expansion, p.check_url)
             level = aggregate.item_level(p.kind, signals, p.urlvet)
             item = AnalyzedItem(
                 id=idx, kind=p.kind, source=p.source, display=p.display, host=p.host, host_ascii=p.host_ascii,
-                details=p.details, urlvet=p.urlvet, sources=p.sources, signals=signals, risk_level=level, summary="",
+                details=p.details, urlvet=p.urlvet, expansion=p.expansion, sources=p.sources, signals=signals,
+                risk_level=level, summary="",
                 lookups=lookup_links(p.check_url, p.host_ascii) if p.kind is ItemKind.url and p.check_url and p.host_ascii else [],
             )
             item.summary = aggregate.item_summary(item)
@@ -205,6 +246,8 @@ class Analyzer:
                     for shown in extract_urls(link.text, limit=3).urls:
                         decoys.add(link_key(shown.url))
                 add(p)
+                for inner in _url_and_inner(u, ItemSource.html_link)[1:]:
+                    add(inner)
             if not text.strip():
                 text = content.text[: self.s.max_text_chars]
 
@@ -214,13 +257,15 @@ class Analyzer:
             if line and not line.startswith("#"):
                 u = parse_candidate(line)
                 if u:
-                    add(_url_pending(u, ItemSource.uri_list))
+                    for p in _url_and_inner(u, ItemSource.uri_list):
+                        add(p)
 
         # 3) Plain text.
         extraction = extract_urls(text, limit=50)
         for u in extraction.urls:
             if link_key(u.url) not in decoys:  # the visible label of a deceptive link is not a destination
-                add(_url_pending(u, ItemSource.text))
+                for p in _url_and_inner(u, ItemSource.text):
+                    add(p)
 
         message_signals = local_rules.text_flag_signals(extraction.flags) + text_cues.text_cue_signals(
             extraction.cleaned_text, has_link=any(p.kind is ItemKind.url for p in pending))
@@ -243,8 +288,10 @@ class Analyzer:
             if payload.kind is ItemKind.url:
                 u = parse_candidate(payload.raw)
                 if u and link_key(u.url) not in seen:
-                    seen.add(link_key(u.url))
-                    pending.append(_url_pending(u, ItemSource.qr))
+                    for p in _url_and_inner(u, ItemSource.qr):
+                        if link_key(p.check_url) not in seen:
+                            seen.add(link_key(p.check_url))
+                            pending.append(p)
                 elif not u:
                     pending.append(_Pending(kind=ItemKind.text, source=ItemSource.qr, display=payload.raw[:200],
                                             details={"note": "Looks like a link but is not a valid address"}))
@@ -252,9 +299,10 @@ class Analyzer:
 
             embedded = extract_urls(payload.raw, limit=10).urls if payload.kind is ItemKind.text else []
             for u in embedded:
-                if link_key(u.url) not in seen:
-                    seen.add(link_key(u.url))
-                    pending.append(_url_pending(u, ItemSource.qr))
+                for p in _url_and_inner(u, ItemSource.qr):
+                    if link_key(p.check_url) not in seen:
+                        seen.add(link_key(p.check_url))
+                        pending.append(p)
             if embedded and not payload.details:
                 continue  # plain text whose only content is links
             display = defang(payload.raw[:200]) if payload.kind is ItemKind.text else payload.raw[:200]

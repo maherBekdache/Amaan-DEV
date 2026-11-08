@@ -13,10 +13,20 @@ Rules (kept simple so they can be explained in the report):
 
 from __future__ import annotations
 
+from amaan.extract.urls import parse_candidate
 from amaan.reputation.base import SourceResult, SourceStatus, SourceVerdict
 from amaan.schemas import (
-    AnalyzedItem, EvidenceLabel, ItemKind, RiskLevel, Severity, Signal, UrlVetResult, UrlVetStatus,
+    AnalyzedItem,
+    EvidenceLabel,
+    Expansion,
+    ItemKind,
+    RiskLevel,
+    Severity,
+    Signal,
+    UrlVetResult,
+    UrlVetStatus,
 )
+from amaan.scoring import local_rules
 
 _ORDER = {RiskLevel.low: 0, RiskLevel.medium: 1, RiskLevel.high: 2}
 _SEV = {Severity.high: RiskLevel.high, Severity.medium: RiskLevel.medium}
@@ -57,6 +67,80 @@ def urlvet_signals(r: UrlVetResult) -> list[Signal]:
             detail="; ".join(r.bad_reasons[:3]) or "; ".join(r.good_reasons[:2]),
             severity=sev, label=EvidenceLabel.automated_indicator, source="urlvet",
         ))
+    return out
+
+
+_PROGRAM_TYPES = {
+    "application/vnd.android.package-archive", "application/x-msdownload", "application/x-msdos-program",
+    "application/x-msi", "application/x-dosexec", "application/x-executable", "application/x-sh",
+    "application/java-archive", "application/x-apple-diskimage", "application/x-ms-installer",
+}
+_PROGRAM_ENDINGS = (".apk", ".xapk", ".apks", ".exe", ".msi", ".scr", ".bat", ".cmd", ".ps1", ".vbs", ".jar",
+                    ".dmg", ".pkg", ".sh")
+
+
+def _exp(id: str, title: str, detail: str, severity: Severity) -> Signal:
+    return Signal(id=id, title=title, detail=detail, severity=severity,
+                  label=EvidenceLabel.automated_indicator, source="expander")
+
+
+def expansion_signals(exp: Expansion | None, start_url: str | None) -> list[Signal]:
+    """What the expansion worker saw when it followed the link (sandbox layer L5)."""
+    if exp is None or exp.status != "ok":
+        return []
+    start = parse_candidate(start_url) if start_url else None
+    seen = {start.registrable} if start else set()
+    out: list[Signal] = []
+    # Every new site on the way gets Amaan's link rules too: the scam is often only at the end.
+    for raw in exp.raw_hops[1:]:
+        u = parse_candidate(raw)
+        if not u or u.registrable in seen:
+            continue
+        seen.add(u.registrable)
+        for s in local_rules.url_signals(u):
+            if s.severity in (Severity.high, Severity.medium) and s.id != "hidden_redirect":
+                out.append(s.model_copy(update={"id": f"redirect_{s.id}", "title": f"After a redirect: {s.title}",
+                                                "source": "expander"}))
+    final = parse_candidate(exp.raw_hops[-1]) if exp.raw_hops else None
+    moved = sum(1 for h in exp.hops if h.via)
+    if moved and final and start and final.registrable != start.registrable:
+        out.append(_exp("redirects_elsewhere", f"Leads to {final.host} after {moved} redirect{'s' if moved > 1 else ''}",
+                        "Amaan's sandbox followed the link without opening it on your device.", Severity.info))
+    if exp.stopped == "blocked address":
+        out.append(_exp("redirects_private", "Link tries to reach a private network address",
+                        "It points to an address inside a home or company network (for example a router). "
+                        "Amaan's sandbox refused to go there.", Severity.medium))
+    official = bool(final and final.registrable in local_rules.official_domains())
+    if not official:
+        if "code" in exp.asks_for:
+            out.append(_exp("page_asks_code", "The page asks for a verification code",
+                            "Real companies never ask for the code they send you by SMS or WhatsApp. "
+                            "Giving it lets scammers take over your account.", Severity.high))
+        if "password" in exp.asks_for:
+            out.append(_exp("page_asks_password", "The page asks for a password",
+                            "Only type a password on a site you opened yourself, not from a link.", Severity.medium))
+        if "card" in exp.asks_for:
+            out.append(_exp("page_asks_card", "The page asks for card details",
+                            "Scam pages copy payment forms to steal card numbers.", Severity.medium))
+    if exp.human_check:
+        out.append(_exp("page_human_check", "The page hides behind a 'verify you are human' check",
+                        "Scam pages use these checks to hide from security scanners, so Amaan could not see "
+                        "what comes after it. Treat it as unknown.", Severity.medium))
+    d = exp.download
+    if d:
+        name = d.filename.lower()
+        program = d.content_type in _PROGRAM_TYPES or name.endswith(_PROGRAM_ENDINGS)
+        if d.content_type == "application/vnd.android.package-archive" or name.endswith((".apk", ".xapk", ".apks")):
+            out.append(_exp("downloads_app", "Link downloads an Android app (APK)",
+                            "Apps from links can steal SMS codes and banking details. Install apps only from "
+                            f"Google Play. File fingerprint (SHA-256): {d.sha256[:16]}...", Severity.high))
+        elif program:
+            out.append(_exp("downloads_program", "Link downloads a program",
+                            f"Running files from links can install malware. Fingerprint: {d.sha256[:16]}...",
+                            Severity.high))
+        else:
+            out.append(_exp("downloads_file", f"Link downloads a file ({d.content_type or 'unknown type'})",
+                            "Amaan did not open it. Open files only from senders you know.", Severity.medium))
     return out
 
 

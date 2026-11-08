@@ -18,13 +18,20 @@ from amaan.ai.provider import make_provider
 from amaan.ai.reasoner import AIOpinion, first_link, second_opinion
 from amaan.analyzer import Analyzer
 from amaan.api import whatsapp
-from amaan.clients.lookyloo import LookylooClient
+from amaan.clients.expander import ExpanderClient
 from amaan.clients.stt import Transcriber
 from amaan.clients.urlvet import UrlVetClient
 from amaan.config import get_settings
 from amaan.extract.qr import ImageRejected, available_decoders, decode_qr_codes
 from amaan.reputation.aggregator import Reputation
-from amaan.schemas import Evidence, ExplainRequest, HealthResponse, InputType, LinkRequest, TextRequest
+from amaan.schemas import (
+    Evidence,
+    ExplainRequest,
+    HealthResponse,
+    InputType,
+    LinkRequest,
+    TextRequest,
+)
 
 # Privacy: we log events and counts only, never message text, links or images.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -48,9 +55,9 @@ async def lifespan(app: FastAPI):
     reputation.start()
     app.state.urlvet = client
     app.state.reputation = reputation
-    app.state.analyzer = Analyzer(settings, client, reputation)
+    app.state.expander = ExpanderClient(settings.expander_socket, settings.expander_timeout_s)
+    app.state.analyzer = Analyzer(settings, client, reputation, app.state.expander)
     app.state.ai = make_provider(settings)
-    app.state.lookyloo = LookylooClient(settings.lookyloo_url, settings.lookyloo_timeout_s)
     app.state.stt = Transcriber(settings.stt_url, settings.stt_model)
     if app.state.stt.error:
         log.warning(app.state.stt.error)
@@ -58,7 +65,7 @@ async def lifespan(app: FastAPI):
     yield
     await client.aclose()
     await reputation.aclose()
-    await app.state.lookyloo.aclose()
+    await app.state.expander.aclose()
     await app.state.stt.aclose()
     if app.state.ai:
         await app.state.ai.aclose()
@@ -130,7 +137,7 @@ async def health(request: Request) -> HealthResponse:
           "model": st.ai.model if st.ai else None, "provider": st.ai.name if st.ai else None}
     return HealthResponse(status="ok", version=__version__, urlvet=uv,
                           qr_decoders=available_decoders(settings.wechat_model_dir), ai=ai,
-                          lookyloo={"enabled": st.lookyloo.enabled, "reachable": await st.lookyloo.reachable()})
+                          expander={"enabled": st.expander.enabled, "reachable": await st.expander.reachable()})
 
 
 @app.post("/analyze/text", response_model=Evidence)
@@ -197,17 +204,17 @@ async def phone_pairing() -> dict:
 @app.post("/ai/explain", response_model=AIOpinion)
 @app.post("/gateway/ai/explain", response_model=AIOpinion, include_in_schema=False)  # phone: evidence only, no text
 async def ai_explain(req: ExplainRequest, request: Request) -> AIOpinion:
-    """AI summary of a result. Lookyloo opens the link in its sandbox first if available."""
+    """AI summary of a result. The expansion worker follows the first link in its sandbox first."""
     st = request.app.state
     if request.url.path.startswith("/gateway"):
         req.text = None  # the phone keeps messages on the phone
     if not st.ai:
         return AIOpinion(available=False, message="AI is turned off (AMAAN_AI_ENABLED=0).")
-    capture = None
+    page = None
     link = first_link(req.evidence)
-    if req.open_page and link and st.lookyloo.enabled:
-        capture = await st.lookyloo.capture(link)
-    return await second_opinion(st.ai, req.evidence, req.text, capture)
+    if req.open_page and link and st.expander.enabled:
+        page = await st.expander.expand(link if "://" in link else "http://" + link)
+    return await second_opinion(st.ai, req.evidence, req.text, page)
 
 
 app.include_router(whatsapp.router)

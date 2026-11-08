@@ -3,7 +3,7 @@ import { textCueSignals } from "./cues";
 import { classifyPayload } from "./payloads";
 import { payloadSignals, textFlagSignals, urlSignals } from "./rules";
 import { sig, type Item, type Result, type RiskLevel, type Severity, type Signal } from "./types";
-import { defang, extractUrls, parseCandidate, type ExtractedUrl } from "./urls";
+import { defang, extractUrls, nestedLinks, parseCandidate, type ExtractedUrl } from "./urls";
 
 const ORDER: Record<RiskLevel, number> = { Low: 0, Medium: 1, High: 2 };
 const SEV: Partial<Record<Severity, RiskLevel>> = { high: "High", medium: "Medium" };
@@ -22,6 +22,13 @@ function linkItem(u: ExtractedUrl, source: Item["source"]): Item {
            signals, riskLevel: itemLevel("url", signals, false), checked: false };
 }
 
+const linkKey = (url: string) => url.toLowerCase().replace(/^[a-z][a-z0-9+.\-]*:\/\//, "").replace(/\/+$/, "");
+
+/** A link, then any link it carries inside it (an open redirect's real destination), skipping repeats. */
+function linkItems(u: ExtractedUrl, source: Item["source"], seen: Set<string>): Item[] {
+  return [u, ...nestedLinks(u)].filter((x) => !seen.has(linkKey(x.url)) && (seen.add(linkKey(x.url)), true)).map((x) => linkItem(x, source));
+}
+
 export function overallLevel(items: Item[], messageSignals: Signal[]): RiskLevel {
   let level = worst(...items.map((i) => i.riskLevel), ...(messageSignals.map((s) => SEV[s.severity]).filter(Boolean) as RiskLevel[]));
   const cues = messageSignals.filter((s) => s.id.startsWith("cue_"));
@@ -33,7 +40,8 @@ export function overallLevel(items: Item[], messageSignals: Signal[]): RiskLevel
 /** Everything that can be decided on the device, from a message. */
 export function analyzeText(text: string): Result {
   const ex = extractUrls(text, 20);
-  const items = ex.urls.map((u) => linkItem(u, "text"));
+  const seen = new Set<string>();
+  const items = ex.urls.flatMap((u) => linkItems(u, "text", seen));
   const signals = [...textFlagSignals(ex.flags), ...textCueSignals(ex.cleaned, items.length > 0)];
   return { items, signals, riskLevel: overallLevel(items, signals), complete: items.length === 0 };
 }
@@ -46,9 +54,8 @@ export function analyzeQr(payloads: string[]): Result {
     const p = classifyPayload(raw);
     if (p.kind === "url") {
       const u = parseCandidate(p.raw);
-      if (u && !seen.has(u.url)) {
-        seen.add(u.url);
-        items.push(linkItem(u, "qr"));
+      if (u && !seen.has(linkKey(u.url))) {
+        items.push(...linkItems(u, "qr", seen));
       } else if (!u) {
         items.push({ kind: "text", source: "qr", display: p.raw.slice(0, 200), details: { note: "Looks like a link but is not a valid address" },
                      signals: [], riskLevel: "Low", checked: true });
@@ -56,10 +63,7 @@ export function analyzeQr(payloads: string[]): Result {
       continue;
     }
     const embedded = p.kind === "text" ? extractUrls(p.raw, 10).urls : [];
-    for (const u of embedded) if (!seen.has(u.url)) {
-      seen.add(u.url);
-      items.push(linkItem(u, "qr"));
-    }
+    for (const u of embedded) items.push(...linkItems(u, "qr", seen));
     if (embedded.length && !Object.keys(p.details).length) continue;
     const signals = payloadSignals(p);
     const display = p.kind === "wifi" ? `Wi-Fi network “${p.details.ssid ?? ""}”` : p.kind === "text" ? defang(p.raw.slice(0, 200)) : p.raw.slice(0, 200);

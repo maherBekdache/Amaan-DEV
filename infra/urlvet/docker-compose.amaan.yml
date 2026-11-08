@@ -2,17 +2,46 @@
 # This is configuration only: URL.vet's code is not modified.
 #  - publish its ports on 127.0.0.1 only (the original binds 0.0.0.0)
 #  - attach its backend to the network shared with Amaan
+#  - move its headless Chrome (the part that opens scam pages) off the open network:
+#    Chrome now sits on an internal network whose only way out is Amaan's egress proxy
+#    (ports 80/443 to public internet addresses only), so a page cannot reach the user's
+#    router, home network, cloud metadata or URL.vet's own cache (docs/DECISIONS.md D19)
+#  - optional gVisor runtime for Chrome: AMAAN_SANDBOX_RUNTIME=runsc in .env
+# Paths are relative to URL.vet's docker/prod folder (the first compose file).
 # Needs Docker Compose >= 2.24 for !override.
 services:
   backend:
     ports: !override
       - "127.0.0.1:8080:8080"
-    networks: [urlvet-net, amaan-urlvet]
+    networks: [urlvet-net, amaan-urlvet, browser]
   web:
     ports: !override
       - "127.0.0.1:3000:80"
+  chrome:
+    networks: !override [browser]
+    # The image runs Chrome as root, which needs --no-sandbox; the walls are this container,
+    # the internal network and (with gVisor) its own kernel. The proxy flags send every page
+    # request through the egress proxy; "<-loopback>" stops Chrome from skipping it for localhost.
+    command: ["--no-sandbox", "--remote-debugging-address=0.0.0.0", "--remote-debugging-port=9222",
+              "--proxy-server=http://egress:3128", "--proxy-bypass-list=<-loopback>"]
+    runtime: ${AMAAN_SANDBOX_RUNTIME:-runc}
+    security_opt: ["no-new-privileges:true"]
+  egress:
+    build:
+      context: ../../../../sandbox/egress
+    image: amaan-egress:dev
+    networks: [browser, urlvet-net]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    pids_limit: 128
+    restart: unless-stopped
 
 networks:
   amaan-urlvet:
     name: amaan-urlvet
     external: true
+  browser:
+    name: amaan-urlvet-browser
+    internal: true   # Chrome's only way out is the egress proxy

@@ -42,7 +42,7 @@ backend/amaan/       FastAPI app (main.py: routes + request guard; analyzer.py: 
   extract/           find links in text, decode QR codes, parse dropped HTML (all offline)
   scoring/           local rules, Arabic/Arabizi scam phrases, final verdict + reasons
   reputation/        OpenPhish/URLhaus lists, Safe Browsing, VirusTotal, urlscan.io
-  clients/           URL.vet sandbox, Lookyloo, speech-to-text for voice notes
+  clients/           URL.vet sandbox, expansion worker (Unix socket), speech-to-text for voice notes
   ai/                AI summary (Ollama or any OpenAI-compatible server)
   api/whatsapp.py, importers/   WhatsApp: chat-export import, alerts, bridge proxy
   data/              brands.json (official domains, each checked by a teammate), cues.json, lookups.json
@@ -54,7 +54,8 @@ app/                 phone app (Expo): App.tsx screens, src/check.ts (hybrid flo
 packages/core/       on-device analysis shared by the apps (TypeScript port of backend/amaan, parity-tested)
 whatsapp-bridge/     optional Node service (Baileys) for live WhatsApp
 samples/             fake WhatsApp chat exports for testing
-infra/               config for URL.vet and Lookyloo (their code is cloned, unmodified, into third_party/)
+infra/               config for URL.vet (its code is cloned, unmodified, into third_party/)
+sandbox/             egress proxy and expansion worker for untrusted links (docs/LINK_SECURITY.md)
 scripts/             amaan.ps1 / amaan.sh
 ```
 

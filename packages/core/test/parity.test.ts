@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import examples from "../../../frontend/src/examples.json";
-import { analyzeQr, analyzeText, defang, extractUrls, markOffline, mergeServer, textCueSignals } from "../src";
+import { analyzeQr, analyzeText, defang, extractUrls, markOffline, mergeServer, nestedLinks, parseCandidate, textCueSignals, typoKind, urlSignals } from "../src";
 
 const here = (p: string) => new URL(p, import.meta.url);
 const hosts = (t: string) => extractUrls(t).urls.map((u) => u.hostAscii);
@@ -113,5 +113,36 @@ describe("look-it-up links (same as backend/tests/test_lookups.py)", () => {
     expect(lookupLinks("omt-gift.com/claim", "omt-gift.com")[0].href).toMatch(/\/http%253A%252F%252Fomt-gift.com%252Fclaim$/);
     const evil = Object.fromEntries(lookupLinks("http://a.com", "evil.com/../x?y=1#").map((l) => [l.id, l.href]));
     expect(evil.urlvoid).toBe("https://www.urlvoid.com/scan/evil.com%2F..%2Fx%3Fy%3D1%23/");
+  });
+});
+
+interface LinkCase { link: string; expect?: string[]; absent?: string[]; inner?: string[] }
+const linkCases: LinkCase[] = JSON.parse(readFileSync(here("../../../backend/tests/data/link_cases.json"), "utf8")).cases;
+
+describe("link rules (same cases as backend/tests/test_link_rules.py)", () => {
+  for (const c of linkCases) {
+    it(c.link.slice(0, 60), () => {
+      const u = parseCandidate(c.link);
+      expect(u).not.toBeNull();
+      const got = new Set(urlSignals(u!).map((s) => s.id));
+      for (const id of c.expect ?? []) expect(got).toContain(id);
+      for (const id of c.absent ?? []) expect(got).not.toContain(id);
+      if (c.inner) expect(nestedLinks(u!).map((n) => n.url)).toEqual(c.inner);
+    });
+  }
+  it("typing-error kinds", () => {
+    expect(typoKind("whsh", "whish")).toBe("a letter left out");
+    expect(typoKind("hish", "whish")).toBeNull();
+    expect(typoKind("whiish", "whish")).toBe("a letter doubled");
+    expect(typoKind("whihs", "whish")).toBe("two letters swapped");
+    expect(typoKind("wjish", "whish")).toBe("a key next to the right one");
+    expect(typoKind("whissh", "whish")).toBe("a letter doubled");
+    expect(typoKind("whisgh", "whish")).toBe("an extra key pressed");
+    expect(typoKind("omtt", "omt")).toBeNull();
+  });
+  it("the link inside an open redirect becomes its own item", () => {
+    const r = analyzeText("Unlock your account: https://www.google.com/url?q=https://whish-unlock.example.com/login");
+    expect(r.items.map((i) => i.hostAscii)).toEqual(["www.google.com", "whish-unlock.example.com"]);
+    expect(r.items[1].signals.map((s) => s.id)).toContain("brand_in_domain");
   });
 });

@@ -19,7 +19,7 @@ import ipaddress
 import re
 import unicodedata
 from dataclasses import dataclass
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 import idna
 import tldextract
@@ -278,6 +278,41 @@ def extract_urls(text: str, limit: int = 50) -> ExtractionResult:
         unique.append(u)
     truncated = len(unique) > limit
     return ExtractionResult(urls=unique[:limit], flags=flags, truncated=truncated, cleaned_text=cleaned)
+
+
+# A query value that is itself a link: "https://…", "//host/…" or "www.…".
+_LINK_VALUE = re.compile(r"^(?:https?:)?//|^www\.", re.IGNORECASE)
+
+
+def nested_links(u: ExtractedUrl, limit: int = 3) -> list[ExtractedUrl]:
+    """Links carried inside another link, which forwards the browser to them.
+
+    Trusted sites can be used as open redirects (google.com/url?q=…,
+    l.facebook.com/l.php?u=…, google.com/travel/clk?pcurl=…, Google AMP
+    /amp/s/<host>/…), so the inner link is the real destination. Only the
+    text of the link is read; nothing is fetched.
+    """
+    try:
+        parts = urlsplit(u.url if u.scheme else "//" + u.url)
+    except ValueError:
+        return []
+    values = [v for _, v in parse_qsl(parts.query)]
+    amp = re.match(r"^/amp/s/(.+)", parts.path)
+    if amp:
+        values.append("https://" + amp.group(1))
+    out: list[ExtractedUrl] = []
+    seen: set[str] = set()
+    for v in values:
+        v = v.strip()
+        if "%3a" in v.lower() or "%2f" in v.lower():  # encoded twice, common in trackers
+            v = unquote(v).strip()
+        if not _LINK_VALUE.match(v):
+            continue
+        n = parse_candidate("https:" + v if v.startswith("//") else v)
+        if n and n.registrable != u.registrable and n.url not in seen:
+            seen.add(n.url)
+            out.append(n)
+    return out[:limit]
 
 
 def defang(value: str) -> str:

@@ -46,8 +46,8 @@ your own text, drop a screenshot, or click **Scan a QR with the camera**.
 - **AI summary** (explains the result in plain words; runs on your computer): install
   [Ollama](https://ollama.com/download), then in PowerShell run `ollama pull qwen2.5:3b` once.
   Amaan finds it automatically. A stronger model on another server: see `.env.example`.
-- **Lookyloo** (opens links in a sandbox for the AI): start with **`start-everything.bat`** instead
-  (first time 10-20 minutes).
+- **Link sandbox** (follows links for the AI and the verdict, with no access to your home network):
+  starts with Amaan, nothing to install. Details: `docs/LINK_SECURITY.md`.
 
 ## Phone app (iOS, Android, web, desktop)
 One app in `app/` (React Native + Expo). It checks messages and QR codes **on the phone**;

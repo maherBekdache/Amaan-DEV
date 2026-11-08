@@ -40,15 +40,15 @@ Kept **off inside URL.vet**: its opt-in Google Safe Browsing / Web Risk, URLhaus
 and OpenPhish feeds. Amaan checks those sources itself instead (D11). URL.vet
 log files are disabled (`LOG_DIR` empty).
 
-## D3. Short links are never expanded by our code
-*Approved by the team, Oct 2026 ("most secure and practical").*
+## D3. Short links are never expanded by our backend
+*Approved by the team, Oct 2026 ("most secure and practical"). Updated 8 Nov 2026 (D19).*
 
 Expanding a short link means requesting it, which is exactly the
 "open untrusted URL" that hard rule 1 forbids. Our backend only recognizes
-known shorteners (a local list) and flags them. URL.vet follows the chain
-inside its container and we show the full chain ("Where it really goes")
-from its report. Our HTTP client has `follow_redirects=False` and ignores
-system proxy settings.
+known shorteners (a local list) and flags them. The chain is followed only inside
+a sandbox: URL.vet's container and, since D19, Amaan's expansion worker. We show
+the chain ("Where it really goes") from their reports. Our backend HTTP clients
+have `follow_redirects=False` and ignore system proxy settings.
 
 ## D4. One process serves API + UI; camera works on localhost
 - The backend serves the built frontend at `http://localhost:8000`, so the
@@ -143,11 +143,8 @@ Pages, …) are never flagged as a whole because of one listed page.
 - Shown as an advisory "AI second opinion" next to the evidence-based verdict, never
   replacing it. Scam text/pages are fenced as untrusted data; output is a fixed JSON
   schema, validated and clipped.
-- Lookyloo (optional, `start-everything.bat`) opens the first link in its sandbox and
-  gives the AI the redirect chain and page text. Lookyloo runs private: captures not
-  listed, internal addresses refused, all third-party modules off, captures archived
-  after 7 days (`infra/lookyloo/`). Its code is unmodified; we build it with
-  `infra/lookyloo/Dockerfile` (upstream's plus the Linux time-zone data it needs).
+- The expansion worker (D19) gives the AI the redirect chain and page text of the link.
+  This replaced Lookyloo, which was removed on 8 Nov 2026.
 - A cloud model may replace Ollama later through `ai/provider.py`; that needs a new
   decision because content would leave the machine (see FUTURE.md §1).
 
@@ -204,7 +201,7 @@ link itself is still never opened.
 - **URL.vet (AGPL-3.0):** never copied, linked or modified; cloned into the git-ignored
   `third_party/` and used over HTTP only. If we ever modify it and expose it over a
   network, those modifications must be published.
-- **Lookyloo (BSD-3):** unmodified; keep its copyright notice if we redistribute it.
+- **Lookyloo (BSD-3):** removed 8 Nov 2026 (D19); no longer used.
 - **Baileys (MIT):** a normal npm dependency of `whatsapp-bridge/`.
 - **PhishIntention (CC0 code, weights' licence unstated):** not used yet; see FUTURE.md §3.
 
@@ -232,6 +229,33 @@ link itself is still never opened.
   speech-to-text server **on this computer**, the transcript is checked like a message; any other address
   is refused. Without it, the alert says the voice note was not checked.
 
+## D19. Link sandbox: expansion worker and egress proxy; Lookyloo removed
+*Approved by the owner, 8 Nov 2026. Details: LINK_SECURITY.md.*
+
+- **Hard rule 1 reworded:** only an approved, disposable, network-restricted sandbox (URL.vet or
+  the expansion worker) opens untrusted links. The backend and the host still never do.
+- **Expansion worker** (`sandbox/expander`, layer L5): follows a link hop by hop (HTTP redirects,
+  meta refresh, script redirects that are read, never run), reads the last page's title, visible
+  text and form fields, and hashes any download without keeping it. No browser, no disk, no logs
+  of links. Limits: 10 hops, 5 s per hop, 20 s in total, 512 KB of HTML, 4,000 characters of text.
+- **Egress proxy** (`sandbox/egress`): the only way out of the sandbox networks. Ports 80 and 443
+  to public internet addresses only; it resolves names itself and connects to the checked address,
+  so a page cannot reach the user's router, home network, cloud metadata or the Amaan server.
+- **One-way channel:** the backend reaches the worker through a Unix socket in a shared volume;
+  the worker has no network path to the backend.
+- **URL.vet's Chrome** moved to its own internal network behind a second copy of the proxy
+  (`infra/urlvet/docker-compose.amaan.yml`). Before this change it had open LAN and internet access.
+- **Container hardening:** read-only file system, all capabilities dropped, no-new-privileges,
+  memory, CPU and process limits. gVisor is optional (`AMAAN_SANDBOX_RUNTIME=runsc`); Firecracker
+  microVMs are planned for spring. MicroVMs cannot run inside a phone app (Android AVF is not
+  available to third-party apps; Apple's Virtualization framework is macOS only), so the phone
+  sends links to the server's sandbox.
+- **Lookyloo removed:** it only covered the first link, took up to 60 s, its build was never
+  verified, and its browser shared a Docker network with the Amaan backend.
+- **Budget:** \$200 approved; everything here is self-hosted and costs nothing extra.
+
 ## Open items for the team
-- [ ] Verify every official domain in `backend/amaan/data/brands.json`.
+- [ ] Verify every official domain in `backend/amaan/data/brands.json`, and add verified second
+  domains (for example a bank's `.com` and `.com.lb`) to stop "other ending" false alarms.
+- [ ] Build and run the sandbox images on Windows; try gVisor (LINK_SECURITY.md section 6).
 - [ ] Decide whether a PhishIntention spike fits the ML part of the report.

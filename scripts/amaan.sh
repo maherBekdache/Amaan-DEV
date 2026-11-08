@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Start/stop the Amaan stack from WSL, Linux or macOS.
-#   ./scripts/amaan.sh up [--urlvet-ui] [--whatsapp] [--lookyloo] [--phone] | down | status | logs | setup | update-urlvet
+#   ./scripts/amaan.sh up [--urlvet-ui] [--whatsapp] [--phone] | down | status | logs | setup | update-urlvet
 #   ./scripts/amaan.sh dev [--mock]   hot-reload backend :8000 + frontend :5173
 #                                     (--mock = FAKE URL.vet, development only)
-#   ./scripts/amaan.sh test           backend tests + frontend type check + phone rules (packages/core)
+#   ./scripts/amaan.sh test           backend + sandbox tests, frontend type check, phone rules (packages/core)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,13 +13,10 @@ URLVET_REF="${URLVET_REF:-a6b54c29b73a053b916805173fba352e9be0204c}"  # pinned; 
 NETWORK="amaan-urlvet"
 CMD="${1:-up}"
 ARGS=" ${*:2} "
-LOOKY_DIR="$ROOT/third_party/lookyloo"
-LOOKY_REPO="https://github.com/Lookyloo/lookyloo.git"
-LOOKY_REF="${LOOKYLOO_REF:-a37506c4ffc063464e016ecff8cfa79f7e65461d}"
-
-looky_compose() {
-  docker compose -p lookyloo -f "$LOOKY_DIR/docker-compose.yml" -f "$ROOT/infra/lookyloo/docker-compose.amaan.yml" "$@"
-}
+# Sandbox runtime for the containers that open untrusted links (runc, or runsc = gVisor).
+# Read from .env so URL.vet's compose project (which has its own .env) gets it too.
+AMAAN_SANDBOX_RUNTIME="${AMAAN_SANDBOX_RUNTIME:-$( { grep -s '^AMAAN_SANDBOX_RUNTIME=' "$ROOT/.env" || true; } | tail -1 | cut -d= -f2-)}"
+export AMAAN_SANDBOX_RUNTIME="${AMAAN_SANDBOX_RUNTIME:-runc}"
 
 # Third-party code runs in Linux containers: keep its line endings exactly as upstream.
 get_pinned() { # repo dir ref
@@ -32,14 +29,6 @@ get_pinned() { # repo dir ref
     git -C "$2" reset --hard --quiet
   fi
   git -C "$2" -c advice.detachedHead=false checkout --quiet "$3"
-}
-
-start_lookyloo() {
-  [ -d "$LOOKY_DIR" ] || echo "==> Cloning Lookyloo (BSD-3, kept unmodified in third_party/)"
-  get_pinned "$LOOKY_REPO" "$LOOKY_DIR" "$LOOKY_REF"
-  cp "$ROOT/infra/lookyloo/generic.json" "$ROOT/infra/lookyloo/modules.json" "$LOOKY_DIR/config/"
-  echo "==> Building and starting Lookyloo (first time: 10-20 minutes)"
-  looky_compose up -d --build
 }
 
 urlvet_compose() {
@@ -94,7 +83,7 @@ case "$CMD" in
     ;;
   test)
     dev_env
-    (cd "$ROOT/backend" && .venv/bin/python -m pytest -q)
+    (cd "$ROOT/backend" && .venv/bin/python -m pytest -q && .venv/bin/python -m pytest -q ../sandbox/tests)
     (cd "$ROOT/frontend" && npm run typecheck)
     (cd "$ROOT/packages/core" && { [ -d node_modules ] || npm install --no-fund --no-audit; } && npm test)
     echo "All checks passed."
@@ -102,12 +91,11 @@ case "$CMD" in
   setup) setup; echo "Setup done." ;;
   up)
     setup
-    services=(backend chrome valkey)
+    services=(backend chrome valkey egress)
     [[ "$ARGS" == *" --urlvet-ui "* ]] && services+=(web)
     echo "==> Building and starting URL.vet (${services[*]})"
     urlvet_compose up -d --build "${services[@]}"
-    echo "==> Building and starting Amaan"
-    [[ "$ARGS" == *" --lookyloo "* ]] && start_lookyloo
+    echo "==> Building and starting Amaan (sandbox runtime: $AMAAN_SANDBOX_RUNTIME)"
     profile=()
     [[ "$ARGS" == *" --whatsapp "* ]] && profile=(--profile whatsapp)
     files=(-f docker-compose.yml)
@@ -136,7 +124,7 @@ case "$CMD" in
   down)
     (cd "$ROOT" && docker compose --profile whatsapp down)
     [ -d "$URLVET_DIR" ] && urlvet_compose down
-    [ -d "$LOOKY_DIR" ] && looky_compose down
+    docker compose -p lookyloo down >/dev/null 2>&1 || true  # Lookyloo was removed (D19); stop an old copy if any
     true
     ;;
   status)
@@ -150,5 +138,5 @@ case "$CMD" in
     git -C "$URLVET_DIR" -c advice.detachedHead=false checkout --quiet "$URLVET_REF"
     echo "URL.vet is at $URLVET_REF. Run './scripts/amaan.sh up' to rebuild."
     ;;
-  *) echo "usage: $0 up [--urlvet-ui] [--whatsapp] [--lookyloo] [--phone] | down | status | logs | setup | update-urlvet | dev [--mock] | test" >&2; exit 2 ;;
+  *) echo "usage: $0 up [--urlvet-ui] [--whatsapp] [--phone] | down | status | logs | setup | update-urlvet | dev [--mock] | test" >&2; exit 2 ;;
 esac

@@ -55,7 +55,7 @@ export default function AIOpinionCard({ ev, text, auto }: { ev: Evidence; text?:
       {state === "loading" && (
         <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-          Thinking… (opening the link in a sandbox first if Lookyloo is running; can take up to a minute)
+          Thinking… (following the link in Amaan's sandbox first; can take up to 30 seconds)
         </p>
       )}
       {error && <p className="mt-2 text-sm text-red-700">{error}</p>}

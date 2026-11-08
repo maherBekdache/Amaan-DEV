@@ -33,8 +33,10 @@ services:
       # Voice notes: local speech-to-text server (empty = off)
       AMAAN_STT_URL: ${AMAAN_STT_URL:-}
       AMAAN_STT_MODEL: ${AMAAN_STT_MODEL:-}
-      # Lookyloo (only if started with -Lookyloo / start-everything.bat)
-      AMAAN_LOOKYLOO_URL: ${AMAAN_LOOKYLOO_URL:-http://lookyloo:5100}
+      # Expansion worker (sandbox layer L5): answers over a Unix socket in the shared volume.
+      AMAAN_EXPANDER_SOCKET: /run/amaan-expander/expander.sock
+    volumes:
+      - expander_sock:/run/amaan-expander   # the only channel to the worker; it cannot call us
     extra_hosts: ["host.docker.internal:host-gateway"]
     networks: [default, urlvet]
     read_only: true              # nothing is written inside the container
@@ -59,10 +61,50 @@ services:
     security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
 
+  # --- Sandbox for untrusted links (docs/LINK_SECURITY.md, docs/DECISIONS.md D19) -----------
+  # The expansion worker follows a link hop by hop without a browser. It sits on an
+  # internal network whose only way out is the egress proxy (ports 80/443 to public
+  # internet addresses only), and it answers Amaan through a Unix socket, so it can reach
+  # neither this computer's network nor the Amaan API.
+  # Stronger isolation: AMAAN_SANDBOX_RUNTIME=runsc in .env after installing gVisor.
+  expander:
+    build: ./sandbox/expander
+    image: amaan-expander:dev
+    environment:
+      AMAAN_EGRESS_PROXY: http://egress:3128
+      AMAAN_EXPANDER_SOCKET: /run/amaan-expander/expander.sock
+    volumes:
+      - expander_sock:/run/amaan-expander
+    networks: [sandbox]
+    runtime: ${AMAAN_SANDBOX_RUNTIME:-runc}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    restart: unless-stopped
+
+  egress:
+    build: ./sandbox/egress
+    image: amaan-egress:dev
+    networks: [sandbox, egress]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    pids_limit: 128
+    restart: unless-stopped
+
 volumes:
   wa_session:
+  expander_sock:
 
 networks:
+  sandbox:
+    internal: true   # no route out except through the egress proxy
+  egress: {}
   urlvet:
     # Shared with URL.vet's backend (see infra/urlvet/docker-compose.amaan.yml).
     # Created by the scripts; create once by hand with:

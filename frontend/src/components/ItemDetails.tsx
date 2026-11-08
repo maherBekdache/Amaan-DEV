@@ -198,6 +198,23 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
             </div>
           )}
 
+          {item.expansion?.status === "ok" && item.expansion.hops.length > 1 &&
+            !(uv?.status === "ok" && uv.redirect_chain.length > 1) && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Where it really goes (followed in Amaan's sandbox, scripts not run)
+              </p>
+              <ol className="ml-4 list-decimal break-all font-mono text-xs text-slate-700" dir="ltr">
+                {item.expansion.hops.map((h, i) => (
+                  <li key={i}>{h.url}{h.via ? <span className="font-sans text-slate-400"> ({h.via})</span> : null}</li>
+                ))}
+              </ol>
+              {item.expansion.stopped && item.expansion.stopped !== "final page" && (
+                <p className="text-xs text-slate-500">Stopped: {item.expansion.stopped}</p>
+              )}
+            </div>
+          )}
+
           <Sources sources={item.sources ?? []} />
 
           {item.signals.length > 0 && (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Evidence, RiskLevel, Severity, Signal } from "../types";
 import AIOpinionCard from "./AIOpinionCard";
+import TraceView from "./TraceView";
 import { LabelChip, SEVERITY_DOT } from "./badges";
 import { ItemCard, Lookups } from "./ItemDetails";
 
@@ -52,6 +53,7 @@ export interface Checked {
 
 export default function Verdict({ ev, checked, aiAuto = false }: { ev: Evidence; checked: Checked | null; aiAuto?: boolean }) {
   const [details, setDetails] = useState(false);
+  const [trace, setTrace] = useState(false);
   const look = LOOK[ev.risk_level];
   const reasons = topReasons(ev);
 
@@ -120,6 +122,12 @@ export default function Verdict({ ev, checked, aiAuto = false }: { ev: Evidence;
           {details && (
             <div className="mt-2 space-y-2">
               {ev.items.map((it) => <ItemCard key={it.id} item={it} />)}
+              {ev.items.some((it) => it.kind === "url") && (
+                <button onClick={() => setTrace(!trace)} className="text-xs font-medium text-teal-700 hover:underline">
+                  {trace ? "Hide" : "Show"} the path through Amaan's layers {trace ? "▴" : "▾"}
+                </button>
+              )}
+              {trace && <TraceView ev={ev} />}
               <p className="text-xs text-slate-400">
                 {Object.entries(ev.stats).map(([k, v]) => `${k.replaceAll("_", " ")}: ${v}`).join(" · ")}
               </p>

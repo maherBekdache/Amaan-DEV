@@ -98,6 +98,39 @@ class UrlVetResult(BaseModel):
     mock: bool = False  # answered by devtools/mock_urlvet.py, not the real URL.vet
 
 
+class ExpansionHop(BaseModel):
+    url: str = Field(description="Defanged")
+    status: int | None = None
+    via: str | None = Field(default=None, description="How this page sent the browser on: http redirect, "
+                                                       "meta refresh or script (read, not run)")
+
+
+class Download(BaseModel):
+    content_type: str = ""
+    size: int = 0
+    sha256: str = ""
+    filename: str = ""
+    complete: bool = True
+
+
+class Expansion(BaseModel):
+    """What the expansion worker (sandbox layer L5) saw when it followed the link."""
+
+    status: str = Field(description="ok | unavailable | error")
+    message: str = ""
+    hops: list[ExpansionHop] = []
+    final_url: str | None = Field(default=None, description="Defanged")
+    stopped: str = ""
+    title: str = Field(default="", description="Title of the last page (written by the site: untrusted)")
+    asks_for: list[str] = Field(default=[], description="password, code, card: fields the last page asks for")
+    human_check: bool = False
+    download: Download | None = None
+    elapsed_ms: int = 0
+    # Kept in the server's memory for the AI summary only; never sent to the apps or logged.
+    text: str = Field(default="", exclude=True)
+    raw_hops: list[str] = Field(default=[], exclude=True)
+
+
 class AnalyzedItem(BaseModel):
     id: int
     kind: ItemKind
@@ -107,6 +140,7 @@ class AnalyzedItem(BaseModel):
     host_ascii: str | None = None  # punycode (xn--) form of the host
     details: dict[str, str] = {}  # payload fields, e.g. Wi-Fi SSID, phone number
     urlvet: UrlVetResult | None = None
+    expansion: Expansion | None = Field(default=None, description="Where the link really goes (sandbox, no browser)")
     sources: list[SourceResult] = Field(default=[], description="Every reputation source's answer (multi-source check)")
     signals: list[Signal] = []
     risk_level: RiskLevel
@@ -138,13 +172,13 @@ class HealthResponse(BaseModel):
     urlvet: dict[str, object]
     qr_decoders: dict[str, bool]
     ai: dict[str, object] = {}
-    lookyloo: dict[str, object] = {}
+    expander: dict[str, object] = {}
 
 
 class ExplainRequest(BaseModel):
     evidence: "Evidence"
     text: str | None = Field(default=None, max_length=5000, description="The message, for context (optional)")
-    open_page: bool = Field(default=True, description="Let Lookyloo open the first link in its sandbox first")
+    open_page: bool = Field(default=True, description="Let the sandbox follow the first link first (expansion worker)")
 
 
 class ImportFinding(BaseModel):

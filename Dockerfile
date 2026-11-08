@@ -12,7 +12,8 @@ FROM python:3.11-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libzbar0 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 10001 amaan
+    && useradd --create-home --uid 10001 amaan \
+    && mkdir -p /run/amaan-expander && chown amaan /run/amaan-expander
 WORKDIR /app
 COPY backend/pyproject.toml ./
 COPY backend/amaan ./amaan

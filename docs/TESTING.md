@@ -40,7 +40,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
   | Dangerous | Be careful | No warning signs |
   |---|---|---|
-  | Arabic prize scam, Arabizi code scam, Bank threat, Parcel fee, Hidden characters, Lookalike site, Fake OMT QR, Crypto QR | Free Wi-Fi QR, Paid SMS QR, Fake file link | Real OMT QR (*Verified* reason), Phone call QR, Normal chat |
+  | Arabic prize scam, Arabizi code scam, Bank threat, Parcel fee, Hidden characters, Lookalike site, Misspelled site, Hidden redirect, Fake OMT QR, Crypto QR | Free Wi-Fi QR, Paid SMS QR, Fake file link | Real OMT QR (*Verified* reason), Phone call QR, Normal chat |
 - [ ] 2.3 Each result shows **Why?** reasons with a label (*Automated check*, *Reported by others* or *Verified*).
 - [ ] 2.4 Drag a screenshot from `frontend\public\examples\` onto the page → QR result.
 - [ ] 2.5 **Scan a QR with the camera**, show `03-open-wifi.png` on your phone → open Wi-Fi warning.
@@ -53,11 +53,22 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 - [ ] 3.4 Under **Why?**, **Check it yourself on other sites** lists 12 sites. Click **VirusTotal ↗** and **Google Safe Browsing ↗** → each opens its rating of that link in a new tab. Amaan's own result doesn't change.
 
-## 4. AI summary + Lookyloo
+## 4. AI summary and link sandbox
 - [ ] 4.1 With Ollama running, a result shows an **AI summary** card (automatic, or **Explain with AI**): what the message is, what the sources found, what to do. It never replaces the verdict above it.
-- [ ] 4.2 Lookyloo is up: http://127.0.0.1:5100 opens its page (only on this computer).
-- [ ] 4.3 For a link result the AI card says **Page opened in Lookyloo's sandbox.** (can take up to a minute). If Lookyloo is off, the card still works and says why the page wasn't opened.
-- [ ] 4.4 Quit Ollama (tray icon) → the card says **Local AI is off…**; the normal verdict still works.
+- [ ] 4.2 The sandbox is up: `docker compose ps` lists `expander` and `egress` as running, and
+  `(Invoke-RestMethod http://localhost:8000/health).expander` shows `enabled: True, reachable: True`.
+- [ ] 4.3 For a link result the AI card says **Link followed in Amaan's sandbox (no browser, scripts not run).** (up to 30 s). Stop the worker (`docker compose stop expander`) → the card still works and says **The expansion worker is not running.** Start it again with `docker compose start expander`.
+- [ ] 4.4 The sandbox cannot reach your home network. This must print **403**:
+  ```powershell
+  docker compose exec expander python -c "import httpx;print(httpx.get('http://192.168.1.1',proxy='http://egress:3128').status_code)"
+  ```
+  and this must fail with a connection error (the worker has no direct route out):
+  ```powershell
+  docker compose exec expander python -c "import httpx;print(httpx.get('http://example.com').status_code)"
+  ```
+- [ ] 4.5 URL.vet still works behind its proxy: paste `omt-lb-gift.com/claim` → the URL.vet row has a result (not *Unavailable*). `docker compose -p urlvet ps` lists `egress` as running.
+- [ ] 4.6 Optional, gVisor: follow LINK_SECURITY.md section 6, set `AMAAN_SANDBOX_RUNTIME=runsc` in `.env`, restart, repeat 4.2 to 4.5. If Docker reports an unknown runtime, remove the line; the default (`runc`) is fine for the demo.
+- [ ] 4.7 Quit Ollama (tray icon) → the card says **Local AI is off…**; the normal verdict still works.
 
 ## 5. WhatsApp on the computer (**WhatsApp** tab)
 **Chat export (no login):**

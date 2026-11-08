@@ -154,6 +154,27 @@
       "label": "Lookalike site"
     },
     {
+      "id": "typo-domain",
+      "lang": "English",
+      "text": "Whish Money: your transfer of $150 is waiting. Confirm it at whsh.money/receive before it expires today.",
+      "expect_signals": [
+        "typo_domain"
+      ],
+      "expect_risk": "High",
+      "label": "Misspelled site"
+    },
+    {
+      "id": "open-redirect",
+      "lang": "English",
+      "text": "Your Whish account is locked. Unlock it within 24 hours here: https://www.google.com/url?q=https://whish-unlock.example.com/login",
+      "expect_signals": [
+        "hidden_redirect",
+        "brand_in_domain"
+      ],
+      "expect_risk": "High",
+      "label": "Hidden redirect"
+    },
+    {
       "id": "file-like-domain",
       "lang": "English",
       "text": "Here are the documents: invoice-2026.zip",
