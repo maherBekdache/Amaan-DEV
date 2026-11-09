@@ -18,6 +18,7 @@ from amaan.extract.urls import (
     ExtractedUrl,
     defang,
     extract_urls,
+    local_target,
     nested_links,
     parse_candidate,
 )
@@ -117,6 +118,10 @@ class Analyzer:
         skipped = 0
         for p in (p for p in pending if p.check_url):
             k = link_key(p.check_url)
+            if local_target(p.check_url):  # URL.vet's TLS check would connect to it unguarded
+                p.urlvet = UrlVetResult(status=UrlVetStatus.skipped,
+                                        message="Not sent to URL.vet: the link points to a private or local address.")
+                continue
             if k in budget.cache:
                 p.urlvet = budget.cache[k].model_copy()
             elif k in budget.queued or budget.remaining > 0:

@@ -189,3 +189,33 @@ async def test_link_without_scheme_is_tried_as_http(site):
     async with server:
         out = await expander.expand(base.removeprefix("http://") + "/start", proxy)
     assert out["final_url"] == base + "/final"
+
+
+# --- end to end: Amaan's backend client -> worker (Unix socket) -> egress proxy -> site ---
+
+async def test_backend_client_end_to_end(site, tmp_path):
+    from amaan.clients.expander import ExpanderClient
+    from amaan.extract.urls import defang
+    from amaan.scoring.aggregate import expansion_signals
+
+    base, port = site
+    proxy_server, proxy = await start_proxy(egress.Policy(ports=frozenset({port}), address_ok=lambda ip: True))
+    sock = str(tmp_path / "expander.sock")
+    worker = await expander.serve(sock, proxy)
+    async with proxy_server, worker:
+        client = ExpanderClient(sock)
+        assert await client.reachable()
+        exp = await client.expand(base + "/start")
+    assert exp.status == "ok" and exp.final_url == defang(base + "/final")  # links reach the app defanged
+    assert [h.via for h in exp.hops][:3] == ["http redirect", "meta refresh", "script (read, not run)"]
+    assert "Confirm your account" in exp.text  # kept for the AI summary only
+    assert "text" not in exp.model_dump()  # never sent to the app
+    ids = {s.id for s in expansion_signals(exp, base + "/start")}
+    assert {"page_asks_code", "page_asks_password"} <= ids
+
+
+async def test_backend_client_when_worker_is_down(tmp_path):
+    from amaan.clients.expander import ExpanderClient
+
+    exp = await ExpanderClient(str(tmp_path / "missing.sock")).expand("https://example.com/")
+    assert exp.status == "unavailable" and exp.hops == []

@@ -55,20 +55,24 @@ async def lifespan(app: FastAPI):
     reputation.start()
     app.state.urlvet = client
     app.state.reputation = reputation
-    app.state.expander = ExpanderClient(settings.expander_socket, settings.expander_timeout_s)
-    app.state.analyzer = Analyzer(settings, client, reputation, app.state.expander)
-    app.state.ai = make_provider(settings)
-    app.state.stt = Transcriber(settings.stt_url, settings.stt_model)
-    if app.state.stt.error:
-        log.warning(app.state.stt.error)
+    expander = ExpanderClient(settings.expander_socket, settings.expander_timeout_s)
+    ai = make_provider(settings)
+    stt = Transcriber(settings.stt_url, settings.stt_model)
+    app.state.expander = expander
+    app.state.analyzer = Analyzer(settings, client, reputation, expander)
+    app.state.ai = ai
+    app.state.stt = stt
+    if stt.error:
+        log.warning(stt.error)
     log.info("Amaan %s started; URL.vet at %s", __version__, settings.urlvet_base_url)
     yield
+    # Close what was opened here (tests may swap the objects on app.state).
     await client.aclose()
     await reputation.aclose()
-    await app.state.expander.aclose()
-    await app.state.stt.aclose()
-    if app.state.ai:
-        await app.state.ai.aclose()
+    await expander.aclose()
+    await stt.aclose()
+    if ai:
+        await ai.aclose()
 
 
 app = FastAPI(title="Amaan", version=__version__, lifespan=lifespan,

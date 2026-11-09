@@ -2,6 +2,11 @@
   "_note": "Link rules shared by the backend (tests/test_link_rules.py) and the phone (packages/core/test/parity.test.ts). Both must give these exact answers. 'expect' = signal ids that must appear, 'absent' = ids that must not, 'inner' = links found inside the link (open redirects).",
   "cases": [
     {"link": "whsh.money", "expect": ["typo_domain"], "absent": ["brand_in_domain"]},
+    {"link": "omtt.com.lb/transfer", "expect": ["typo_domain"], "absent": ["brand_in_domain"]},
+    {"link": "dhll.com/track", "expect": ["typo_domain"]},
+    {"link": "alffa.com.lb", "expect": ["typo_domain"]},
+    {"link": "bloom.com", "absent": ["typo_domain"]},
+    {"link": "ont.com", "absent": ["typo_domain"]},
     {"link": "whiish.money", "expect": ["typo_domain"]},
     {"link": "whihs.money", "expect": ["typo_domain"]},
     {"link": "wjish.money", "expect": ["typo_domain"]},

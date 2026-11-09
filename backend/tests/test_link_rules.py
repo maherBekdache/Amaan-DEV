@@ -4,10 +4,12 @@
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
-from amaan.extract.urls import nested_links, parse_candidate
+from amaan.extract.urls import local_target, nested_links, parse_candidate
 from amaan.scoring.local_rules import typo_kind, url_signals
+from tests.conftest import URLVET
 
 CASES = json.loads((Path(__file__).parent / "data" / "link_cases.json").read_text(encoding="utf-8"))["cases"]
 
@@ -56,3 +58,21 @@ def test_link_without_scheme_keeps_its_inner_link_separate(client_off):
     # its key with the link inside it and the two were merged into one item.
     ev = client_off.post("/analyze/text", json={"uri_list": "google.com/url?q=https://evil-site.com/a"}).json()
     assert [i["host_ascii"] for i in ev["items"]] == ["google.com", "evil-site.com"]
+
+
+@pytest.mark.parametrize("link,local", [
+    ("http://192.168.1.1/login", True), ("http://10.0.0.5:8080/", True), ("https://127.0.0.1/", True),
+    ("http://[::1]/", True), ("http://[::ffff:192.168.0.1]/", True), ("http://router.local/", True),
+    ("http://localhost:3000/", True), ("nas.lan/admin", True), ("http://169.254.169.254/latest", True),
+    ("https://8.8.8.8/", False), ("https://whish.money/", False), ("omt-lb-gift.com/claim", False),
+])
+def test_local_target(link, local):
+    assert local_target(link) is local
+
+
+def test_private_address_is_not_sent_to_urlvet(client):
+    calls = []
+    client.mock.get(f"{URLVET}/api/v1/analyze").mock(side_effect=lambda r: calls.append(r) or httpx.Response(500))
+    item = client.post("/analyze/text", json={"text": "Router update: http://192.168.1.1/login"}).json()["items"][0]
+    assert not calls
+    assert item["urlvet"]["status"] == "skipped" and "private or local" in item["urlvet"]["message"]

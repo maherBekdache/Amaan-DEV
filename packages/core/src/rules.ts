@@ -4,10 +4,12 @@ import { CRYPTO_SCHEMES, type Payload } from "./payloads";
 import { sig, type Signal } from "./types";
 import { defang, nestedLinks, toUnicodeHost, type ExtractedUrl, type TextFlags } from "./urls";
 
-interface Brand { name: string; domains: string[]; keywords: string[] }
+interface Brand { name: string; domains: string[]; keywords: string[]; typos?: string[] }
 const BRANDS: Brand[] = (brandsData as { brands: Brand[] }).brands;
 const SHORTENERS = new Set<string>((brandsData as { shorteners: string[] }).shorteners);
 const OFFICIALS = new Map<string, string>(BRANDS.flatMap((b) => b.domains.map((d) => [d, b.name] as [string, string])));
+// Listed misspellings of short brand names: misspelling -> [official domain, brand].
+const KNOWN_TYPOS = new Map<string, [string, string]>(BRANDS.flatMap((b) => (b.typos ?? []).map((t) => [t, [b.domains[0], b.name]] as [string, [string, string]])));
 const FILE_LIKE_TLDS = new Set(["zip", "mov", "exe", "pdf", "doc", "apk", "scr"]);
 const BAIT_WORDS = ["prize", "winner", "win", "gift", "bonus", "reward", "lottery", "lucky", "claim", "free",
   "verify", "verification", "secure", "login", "signin", "update", "wallet", "airdrop", "promo"];
@@ -30,7 +32,8 @@ const SCRIPTS: [string, RegExp][] = [
 ];
 const scriptsOf = (label: string) => new Set(SCRIPTS.filter(([, re]) => [...label].some((c) => re.test(c))).map(([n]) => n));
 
-// Typing errors (typosquatting). Only names of 5+ letters are compared, and only with
+// Typing errors (typosquatting). Only names of 5+ letters are compared (shorter names use the
+// 'typos' list in brands.json), and only with
 // the slips people actually make: a dropped letter (not the first), a doubled letter, two
 // letters swapped, or a key next to the right one. Same as the backend.
 const KEY_ROWS = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"];
@@ -130,6 +133,11 @@ export function urlSignals(u: ExtractedUrl): Signal[] {
         found = sig("typo_domain", `Misspells ${brand}'s official domain`, `'${u.host}' is ${off} with ${kind}, a typing error scammers register on purpose.`, "high");
         break;
       }
+    }
+    const listed = found ? undefined : KNOWN_TYPOS.get(label);
+    if (listed) {
+      const [off, brand] = listed;
+      found = sig("typo_domain", `Misspells ${brand}'s official domain`, `'${u.host}' is a known misspelling of ${brand}'s name; the official site is ${off}.`, "high");
     }
     for (const [off, brand] of found ? [] : entries) {
       if (label === off.split(".")[0]) {

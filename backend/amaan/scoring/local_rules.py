@@ -51,6 +51,11 @@ def official_domains() -> dict[str, str]:
     return {d: b["name"] for b in _data()["brands"] for d in b["domains"]}
 
 
+def known_typos() -> dict[str, tuple[str, str]]:
+    """Listed misspellings of short brand names: misspelling -> (official domain, brand)."""
+    return {t: (b["domains"][0], b["name"]) for b in _data()["brands"] for t in b.get("typos", [])}
+
+
 def shorteners() -> set[str]:
     return set(_data()["shorteners"])
 
@@ -77,7 +82,8 @@ def _scripts(label: str) -> set[str]:
     return out
 
 
-# Typing errors (typosquatting). Only names of 5+ letters are compared, and only
+# Typing errors (typosquatting). Only names of 5+ letters are compared (shorter names use the
+# 'typos' list in brands.json), and only
 # with the slips people actually make: a dropped letter (not the first), a doubled
 # letter, two letters swapped, or a key next to the right one. Any single edit would
 # also flag ordinary words ("finance" against "binance", "cloud" against "icloud").
@@ -207,6 +213,13 @@ def url_signals(u: ExtractedUrl) -> list[Signal]:
                     Severity.high,
                 )
                 break
+        if not found and domain_label in (typos := known_typos()):
+            official, brand = typos[domain_label]
+            found = _sig(
+                "typo_domain", f"Misspells {brand}'s official domain",
+                f"'{u.host}' is a known misspelling of {brand}'s name; the official site is {official}.",
+                Severity.high,
+            )
         for official, brand in officials.items() if not found else ():
             if domain_label == official.split(".")[0]:
                 found = _sig(

@@ -160,6 +160,28 @@ def _is_ip(host: str) -> bool:
         return False
 
 
+_LOCAL_NAMES = ("localhost", ".localhost", ".local", ".lan", ".home", ".internal", ".home.arpa", ".corp")
+
+
+def local_target(url: str) -> bool:
+    """True when a link names this computer or a home/office network directly (a private IP
+    address or a local-only name). No DNS lookup: a public name that resolves to a private
+    address is stopped by the sandbox's egress proxy instead."""
+    try:
+        host = (urlsplit(url if "://" in url else "http://" + url).hostname or "").lower().rstrip(".")
+    except ValueError:
+        return False
+    if not host:
+        return False
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return host == "localhost" or host.endswith(_LOCAL_NAMES)
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return not addr.is_global
+
+
 def parse_candidate(candidate: str, allow_bare_ip: bool = True) -> ExtractedUrl | None:
     """Validate one candidate string and build an ExtractedUrl (or None).
 
