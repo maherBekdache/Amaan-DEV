@@ -22,8 +22,9 @@ services:
     # The image runs Chrome as root, which needs --no-sandbox; the walls are this container,
     # the internal network and (with gVisor) its own kernel. The proxy flags send every page
     # request through the egress proxy; "<-loopback>" stops Chrome from skipping it for localhost.
-    command: ["--no-sandbox", "--remote-debugging-address=0.0.0.0", "--remote-debugging-port=9222",
-              "--proxy-server=http://egress:3128", "--proxy-bypass-list=<-loopback>"]
+    # The image's entrypoint already starts Chrome (debugging on 9223, forwarded to 9222 by socat)
+    # and appends these flags; repeating its port flags breaks the forwarding (seen in CI, 9 Nov).
+    command: ["--proxy-server=http://egress:3128", "--proxy-bypass-list=<-loopback>"]
     runtime: ${AMAAN_SANDBOX_RUNTIME:-runc}
     security_opt: ["no-new-privileges:true"]
   egress:

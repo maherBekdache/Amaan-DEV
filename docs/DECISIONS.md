@@ -245,6 +245,9 @@ link itself is still never opened.
   the worker has no network path to the backend.
 - **URL.vet's Chrome** moved to its own internal network behind a second copy of the proxy
   (`infra/urlvet/docker-compose.amaan.yml`). Before this change it had open LAN and internet access.
+  (9 Nov: URL.vet's analysis does not use this Chrome; only its screenshot endpoint and web page do.
+  The analysis uses Go HTTP requests with URL.vet's own private-address guard. Private and local
+  links are no longer sent to URL.vet, because its TLS check skips that guard.)
 - **Container hardening:** read-only file system, all capabilities dropped, no-new-privileges,
   memory, CPU and process limits. gVisor is optional (`AMAAN_SANDBOX_RUNTIME=runsc`); Firecracker
   microVMs are planned for spring. MicroVMs cannot run inside a phone app (Android AVF is not

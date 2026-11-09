@@ -189,12 +189,13 @@ Other standing rules:
 | Ollama | 11434 (host) |
 | Expo | 8081 |
 
-**Tests (all passing on 24 Oct):**
+**Tests (all passing on 9 Nov):**
 
 | Area | Tests |
 |---|---|
-| Backend | 164 |
-| Core | 34 (parity with backend) |
+| Backend | 222 |
+| Core | 66 (parity with backend) |
+| Sandbox | 30 (`sandbox/tests`), plus CI job `sandbox` running the real containers with runc and gVisor |
 | Bridge | 19 (`node --test`) |
 | App | typecheck + web/iOS/Android bundle export |
 
@@ -275,8 +276,13 @@ Details: `docs/MOBILE_PERMISSIONS.md`, `docs/FUTURE.md`, `docs/DECISIONS.md` (D1
   service); hard rule 1 reworded (above); Lookyloo removed (D19).
 - **New rules:** typo domains (keyboard slips of a brand), brand prefix (`whish.money.example.com`),
   brand on another ending, hidden redirect inside a link (`google.com/url?q=...`). Same rules in
-  `packages/core`; 23 shared cases in `backend/tests/data/link_cases.json`.
+  `packages/core`; 28 shared cases in `backend/tests/data/link_cases.json`. Short names (OMT, BLOM,
+  BDL, DHL, alfa) use a listed set of misspellings in `brands.json`.
 - **New sandbox:** expansion worker (L5) and egress proxy; URL.vet Chrome moved to an internal network
   behind the proxy. Design, layers and residual risks: `docs/LINK_SECURITY.md`.
-- **Still to do:** build and run the images on Windows (`docs/TESTING.md` section 4); trace view for the
-  demo; Firecracker trial in spring.
+- **9 Nov:** trace view for the demo (web app, "Show the path through Amaan's layers"); CI job
+  `sandbox` builds and runs the real stack (runc, then gVisor). URL.vet's analysis turned out not to
+  use its Chrome (screenshots only); its TLS check skips its SSRF guard, so private and local links
+  are no longer sent to it.
+- **Still to do:** check on Windows (`docs/TESTING.md` section 4); browser sandbox (L6) and
+  Firecracker trial in spring.
