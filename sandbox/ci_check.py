@@ -24,7 +24,7 @@ AMAAN = "http://localhost:8000"
 URLVET = "http://localhost:8080"
 BROWSER_NET = "amaan-urlvet-browser"
 CURL = "curlimages/curl:8.11.1"
-PROXY = "http://10.213.47.2:3128"  # fixed address of the egress proxy on the sandbox network
+PROXY = "http://10.213.47.200:3128"  # fixed address of the egress proxy on the sandbox network
 failures: list[str] = []
 
 
@@ -80,7 +80,7 @@ def main() -> int:
     check("URL.vet Chrome screenshot through the proxy", shot.status_code == 200
           and shot.headers.get("content-type", "").startswith("image/"), shot.status_code)
     r = run("docker", "run", "--rm", "--network", BROWSER_NET, CURL, "-sS", "-m", "8", "-o", "/dev/null",
-            "-w", "%{http_code}", "-x", "http://10.213.48.2:3128", "http://192.168.1.1/")
+            "-w", "%{http_code}", "-x", "http://10.213.48.200:3128", "http://192.168.1.1/")
     check("browser network -> proxy -> 192.168.1.1 refused (403)", r.stdout.strip() == "403", r.stdout.strip())
     r = run("docker", "run", "--rm", "--network", BROWSER_NET, CURL, "-sS", "-m", "8", "-o", "/dev/null",
             "http://example.com/")

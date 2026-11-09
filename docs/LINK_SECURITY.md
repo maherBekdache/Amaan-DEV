@@ -99,8 +99,8 @@ gVisor gives each sandbox container its own user-space kernel. It needs Linux.
   ```
   Then `AMAAN_SANDBOX_RUNTIME=runsc` in `.env` and restart Amaan. `--host-uds=create` lets the worker
   create its Unix socket inside gVisor so Amaan can connect from outside. Under gVisor the containers
-  cannot use Docker's DNS, so the proxies have fixed addresses (`10.213.47.2` for the worker,
-  `10.213.48.2` for URL.vet's Chrome). CI runs every check under gVisor on each push.
+  cannot use Docker's DNS, so the proxies have fixed addresses (`10.213.47.200` for the worker,
+  `10.213.48.200` for URL.vet's Chrome). CI runs every check under gVisor on each push.
 - **Docker Desktop on Windows:** not supported out of the box (its engine runs in a VM we cannot add
   runtimes to reliably). Keep `runc` for the demo. Not yet tried on the owner's machine.
 

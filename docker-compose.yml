@@ -72,7 +72,7 @@ services:
     image: amaan-expander:dev
     environment:
       # A fixed address, not the name "egress": under gVisor the container cannot use Docker's DNS.
-      AMAAN_EGRESS_PROXY: http://10.213.47.2:3128
+      AMAAN_EGRESS_PROXY: http://10.213.47.200:3128
       AMAAN_EXPANDER_SOCKET: /run/amaan-expander/expander.sock
     volumes:
       - expander_sock:/run/amaan-expander
@@ -91,7 +91,7 @@ services:
     build: ./sandbox/egress
     image: amaan-egress:dev
     networks:
-      sandbox: {ipv4_address: 10.213.47.2}
+      sandbox: {ipv4_address: 10.213.47.200}
       egress: {}
     read_only: true
     cap_drop: [ALL]
@@ -108,7 +108,7 @@ networks:
   sandbox:
     internal: true   # no route out except through the egress proxy
     ipam:
-      config: [{subnet: 10.213.47.0/24}]
+      config: [{subnet: 10.213.47.0/24, ip_range: 10.213.47.0/25}]
   egress: {}
   urlvet:
     # Shared with URL.vet's backend (see infra/urlvet/docker-compose.amaan.yml).
