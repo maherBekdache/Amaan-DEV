@@ -60,7 +60,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 - [ ] 4.3 For a link result the AI card says **Link followed in Amaan's sandbox (no browser, scripts not run).** (up to 30 s). Stop the worker (`docker compose stop expander`) → the card still works and says **The expansion worker is not running.** Start it again with `docker compose start expander`.
 - [ ] 4.4 The sandbox cannot reach your home network. This must print **403**:
   ```powershell
-  docker compose exec expander python -c "import httpx;print(httpx.get('http://192.168.1.1',proxy='http://egress:3128').status_code)"
+  docker compose exec expander python -c "import httpx;print(httpx.get('http://192.168.1.1',proxy='http://10.213.47.2:3128').status_code)"
   ```
   and this must fail with a connection error (the worker has no direct route out):
   ```powershell

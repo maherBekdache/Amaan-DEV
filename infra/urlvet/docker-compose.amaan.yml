@@ -24,14 +24,17 @@ services:
     # request through the egress proxy; "<-loopback>" stops Chrome from skipping it for localhost.
     # The image's entrypoint already starts Chrome (debugging on 9223, forwarded to 9222 by socat)
     # and appends these flags; repeating its port flags breaks the forwarding (seen in CI, 9 Nov).
-    command: ["--proxy-server=http://egress:3128", "--proxy-bypass-list=<-loopback>"]
+    # The proxy is given by address: under gVisor, Chrome cannot use Docker's DNS.
+    command: ["--proxy-server=http://10.213.48.2:3128", "--proxy-bypass-list=<-loopback>"]
     runtime: ${AMAAN_SANDBOX_RUNTIME:-runc}
     security_opt: ["no-new-privileges:true"]
   egress:
     build:
       context: ../../../../sandbox/egress
     image: amaan-egress:dev
-    networks: [browser, urlvet-net]
+    networks:
+      browser: {ipv4_address: 10.213.48.2}
+      urlvet-net: {}
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -46,3 +49,5 @@ networks:
   browser:
     name: amaan-urlvet-browser
     internal: true   # Chrome's only way out is the egress proxy
+    ipam:
+      config: [{subnet: 10.213.48.0/24}]

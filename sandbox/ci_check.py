@@ -24,6 +24,7 @@ AMAAN = "http://localhost:8000"
 URLVET = "http://localhost:8080"
 BROWSER_NET = "amaan-urlvet-browser"
 CURL = "curlimages/curl:8.11.1"
+PROXY = "http://10.213.47.2:3128"  # fixed address of the egress proxy on the sandbox network
 failures: list[str] = []
 
 
@@ -49,15 +50,13 @@ def main() -> int:
     for _ in range(60):
         try:
             health = httpx.get(f"{AMAAN}/health", timeout=5).json()
-            if health.get("expander", {}).get("reachable"):
+            if (health.get("expander") or {}).get("reachable"):
                 break
-        except httpx.HTTPError:
-            pass
+        except (httpx.HTTPError, ValueError) as e:
+            health = {"error": repr(e)}
         time.sleep(2)
-    else:
-        health = {}
     check("health: expansion worker reachable", health.get("expander") == {"enabled": True, "reachable": True},
-          health.get("expander"))
+          health)
 
     ev = httpx.post(f"{AMAAN}/analyze/text", json={"text": "Look: https://example.com/"}, timeout=90).json()
     item = next(i for i in ev["items"] if i["kind"] == "url")
@@ -70,9 +69,9 @@ def main() -> int:
     uv = ev["items"][0].get("urlvet") or {}
     check("private address not sent to URL.vet", uv.get("status") == "skipped", uv.get("message"))
 
-    r = in_worker("import httpx;print(httpx.get('http://192.168.1.1',proxy='http://egress:3128',timeout=10).status_code)")
+    r = in_worker(f"import httpx;print(httpx.get('http://192.168.1.1',proxy='{PROXY}',timeout=10).status_code)")
     check("worker -> proxy -> 192.168.1.1 refused (403)", r.stdout.strip() == "403", r.stdout.strip() or r.stderr[-200:])
-    r = in_worker("import httpx;print(httpx.get('http://169.254.169.254/',proxy='http://egress:3128',timeout=10).status_code)")
+    r = in_worker(f"import httpx;print(httpx.get('http://169.254.169.254/',proxy='{PROXY}',timeout=10).status_code)")
     check("worker -> proxy -> cloud metadata refused (403)", r.stdout.strip() == "403", r.stdout.strip() or r.stderr[-200:])
     r = in_worker("import httpx;httpx.get('http://example.com',timeout=8)")
     check("worker has no direct route out", r.returncode != 0, r.stderr.strip().splitlines()[-1:] if r.stderr else "")
@@ -81,7 +80,7 @@ def main() -> int:
     check("URL.vet Chrome screenshot through the proxy", shot.status_code == 200
           and shot.headers.get("content-type", "").startswith("image/"), shot.status_code)
     r = run("docker", "run", "--rm", "--network", BROWSER_NET, CURL, "-sS", "-m", "8", "-o", "/dev/null",
-            "-w", "%{http_code}", "-x", "http://egress:3128", "http://192.168.1.1/")
+            "-w", "%{http_code}", "-x", "http://10.213.48.2:3128", "http://192.168.1.1/")
     check("browser network -> proxy -> 192.168.1.1 refused (403)", r.stdout.strip() == "403", r.stdout.strip())
     r = run("docker", "run", "--rm", "--network", BROWSER_NET, CURL, "-sS", "-m", "8", "-o", "/dev/null",
             "http://example.com/")

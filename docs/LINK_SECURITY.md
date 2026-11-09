@@ -95,9 +95,12 @@ gVisor gives each sandbox container its own user-space kernel. It needs Linux.
   curl -fsSL https://gvisor.dev/archive.key | sudo gpg --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main" | sudo tee /etc/apt/sources.list.d/gvisor.list
   sudo apt-get update && sudo apt-get install -y runsc
-  sudo runsc install && sudo systemctl restart docker
+  sudo runsc install -- --host-uds=create && sudo systemctl restart docker
   ```
-  Then `AMAAN_SANDBOX_RUNTIME=runsc` in `.env` and restart Amaan.
+  Then `AMAAN_SANDBOX_RUNTIME=runsc` in `.env` and restart Amaan. `--host-uds=create` lets the worker
+  create its Unix socket inside gVisor so Amaan can connect from outside. Under gVisor the containers
+  cannot use Docker's DNS, so the proxies have fixed addresses (`10.213.47.2` for the worker,
+  `10.213.48.2` for URL.vet's Chrome). CI runs every check under gVisor on each push.
 - **Docker Desktop on Windows:** not supported out of the box (its engine runs in a VM we cannot add
   runtimes to reliably). Keep `runc` for the demo. Not yet tried on the owner's machine.
 
