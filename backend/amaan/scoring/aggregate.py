@@ -13,10 +13,13 @@ Rules (kept simple so they can be explained in the report):
 
 from __future__ import annotations
 
+import re
+
 from amaan.extract.urls import parse_candidate
 from amaan.reputation.base import SourceResult, SourceStatus, SourceVerdict
 from amaan.schemas import (
     AnalyzedItem,
+    BrowserView,
     EvidenceLabel,
     Expansion,
     ItemKind,
@@ -122,6 +125,11 @@ def expansion_signals(exp: Expansion | None, start_url: str | None) -> list[Sign
         if "card" in exp.asks_for:
             out.append(_exp("page_asks_card", "The page asks for card details",
                             "Scam pages copy payment forms to steal card numbers.", Severity.medium))
+        brand = brand_on_page(exp.title)
+        if brand and exp.asks_for:
+            out.append(_exp("page_brand_mismatch", f"The page presents itself as {brand[0]} but is not on {brand[1]}",
+                            f"Its title names {brand[0]} and it asks for your {' and '.join(exp.asks_for)}, but "
+                            f"{brand[0]}'s real site is {brand[1]}.", Severity.high))
     if exp.human_check:
         out.append(_exp("page_human_check", "The page hides behind a 'verify you are human' check",
                         "Scam pages use these checks to hide from security scanners, so Amaan could not see "
@@ -141,6 +149,78 @@ def expansion_signals(exp: Expansion | None, start_url: str | None) -> list[Sign
         else:
             out.append(_exp("downloads_file", f"Link downloads a file ({d.content_type or 'unknown type'})",
                             "Amaan did not open it. Open files only from senders you know.", Severity.medium))
+    return out
+
+
+# Brand names that are also everyday words are matched only through an unambiguous phrase.
+_BRAND_PHRASES = {"touch": (), "alfa": (), "Apple": ("Apple ID", "iCloud")}
+
+
+def brand_on_page(title: str) -> tuple[str, str] | None:
+    """(brand, official domain) when a page title names a protected brand."""
+    for b in local_rules._data()["brands"]:
+        name = b["name"]
+        phrases = _BRAND_PHRASES.get(name, (name,))
+        for ph in phrases:
+            flags = 0 if len(ph) <= 3 else re.IGNORECASE  # OMT, DHL: capitals only
+            if re.search(rf"(?<![\w-]){re.escape(ph)}(?![\w-])", title, flags):
+                return name, b["domains"][0]
+    return None
+
+
+def needs_browser(exp: Expansion | None, start_url: str | None, suspicious: bool) -> bool:
+    """Whether layer L6 (a real browser in a disposable container) should open the link.
+    It costs seconds, so only when L5 (no scripts) could not see enough, or the link is
+    already suspicious and the page may hide more (fake windows, paste-and-run lures)."""
+    if exp is None or exp.status != "ok" or exp.download:
+        return False
+    if exp.stopped not in ("final page", "too many redirects", "redirect loop"):
+        return False  # blocked, unreachable, not a web link: a browser would not do better
+    final = parse_candidate(exp.raw_hops[-1]) if exp.raw_hops else None
+    if final and final.registrable in local_rules.official_domains():
+        return False
+    if exp.human_check or any(h.via and h.via.startswith("script") for h in exp.hops):
+        return True
+    if len(exp.text) < 200 and not exp.asks_for:
+        return True  # an empty shell: the content is built by scripts
+    return suspicious
+
+
+def _brw(id: str, title: str, detail: str, severity: Severity) -> Signal:
+    return Signal(id=id, title=title, detail=detail, severity=severity,
+                  label=EvidenceLabel.automated_indicator, source="browser")
+
+
+def browser_signals(view: BrowserView | None, exp: Expansion | None, start_url: str | None) -> list[Signal]:
+    """What the browser sandbox (layer L6) saw beyond what L5 already reported."""
+    if view is None or view.status != "ok":
+        return []
+    have = {s.id for s in expansion_signals(exp, start_url)}
+    as_exp = Expansion(**{k: getattr(view, k) for k in Expansion.model_fields})
+    out = [s.model_copy(update={"source": "browser"}) for s in expansion_signals(as_exp, start_url)
+           if s.id not in have and s.id != "redirects_elsewhere"]
+    final = parse_candidate(view.raw_hops[-1]) if view.raw_hops else None
+    official = bool(final and final.registrable in local_rules.official_domains())
+    before = set(exp.asks_for) if exp and exp.status == "ok" else set()
+    hidden = [a for a in view.asks_for if a not in before]
+    if hidden and not official and exp is not None and exp.status == "ok" and exp.stopped == "final page":
+        out.append(_brw("page_hidden_from_scanners", "The page shows its form only to a real visitor",
+                        f"A plain scan saw nothing to fill in; in a real browser the page asked for your "
+                        f"{' and '.join(hidden)}. Hiding content from scanners is a common scam technique.",
+                        Severity.medium))
+    if view.clickfix:
+        out.append(_brw("page_paste_command", "The page tries to make you paste and run a command",
+                        "It copied a command to the clipboard and tells the visitor to paste it into the Run box "
+                        "or a terminal. That installs malware. No real 'verification' works this way.",
+                        Severity.high))
+    if view.fake_window and not official:
+        out.append(_brw("page_fake_window", "The page draws a fake browser window",
+                        f"It shows a drawn window with the address '{view.fake_window[0]}' around a login form. "
+                        "The address is a picture, not the real one.", Severity.high))
+    if view.login_frames and not official:
+        out.append(_brw("page_login_frame", f"The page embeds a login form from {view.login_frames[0]}",
+                        "A login box loaded from another site inside the page can relay what you type.",
+                        Severity.medium))
     return out
 
 

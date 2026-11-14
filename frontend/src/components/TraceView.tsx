@@ -57,6 +57,27 @@ function rowsFor(item: AnalyzedItem, ev: Evidence): Row[] {
       touched: "sandbox",
     });
   }
+  const b = item.browser;
+  if (b) {
+    rows.push({
+      layer: "L6 Browser sandbox",
+      where: "disposable Chromium container (one link, then destroyed), egress proxy only",
+      got: "the link only",
+      gave: [
+        `${b.hops.length} hop${b.hops.length === 1 ? "" : "s"}, stopped: ${b.stopped || "?"}`,
+        ...(b.final_url ? [`final: ${b.final_url}`] : []),
+        ...(b.asks_for.length ? [`page asks for: ${b.asks_for.join(", ")}`] : []),
+        ...(b.clickfix ? ["page copies a command to the clipboard (text kept on the server)"] : []),
+        ...(b.fake_window.length ? [`drawn browser window showing ${b.fake_window[0]}`] : []),
+        ...(b.login_frames.length ? [`login form embedded from ${b.login_frames[0]}`] : []),
+        ...(b.download ? [`download hashed: ${b.download.sha256.slice(0, 12)}…, not kept`] : []),
+        ...item.signals.filter((s) => s.source === "browser").map((s) => `${s.id} (${s.severity})`),
+        ...(b.screenshot ? [`screenshot (${Math.round((b.screenshot.length * 0.75) / 1024)} KB JPEG)`] : []),
+        `scripts ran in the sandbox, ${(b.elapsed_ms / 1000).toFixed(1)} s`,
+      ],
+      touched: "sandbox",
+    });
+  }
   const uv = item.urlvet;
   if (uv) {
     rows.push({

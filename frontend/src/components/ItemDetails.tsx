@@ -198,6 +198,17 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
             </div>
           )}
 
+          {item.browser?.screenshot && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                What the page looks like (opened in Amaan's browser sandbox, not on your device)
+              </p>
+              <img src={item.browser.screenshot} alt="Screenshot of the page, taken inside the sandbox"
+                className="mt-1 max-h-96 rounded-lg border border-slate-300" />
+              <p className="text-xs text-slate-500">A picture only. Do not type anything into the real page.</p>
+            </div>
+          )}
+
           {item.expansion?.status === "ok" && item.expansion.hops.length > 1 &&
             !(uv?.status === "ok" && uv.redirect_chain.length > 1) && (
             <div>

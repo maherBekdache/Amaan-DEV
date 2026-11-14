@@ -67,6 +67,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
   docker compose exec expander python -c "import httpx;print(httpx.get('http://example.com').status_code)"
   ```
 - [ ] 4.5 URL.vet still answers: paste `omt-lb-gift.com/claim` → the URL.vet row has a result (not *Unavailable*). Paste `http://192.168.1.1/login` → the URL.vet row says **Not sent to URL.vet: the link points to a private or local address.** `docker compose -p urlvet ps` lists `egress` as running. Optional: open `http://localhost:8080/api/v1/screenshot?url=https://example.com` → a picture of example.com (URL.vet's Chrome through the proxy).
+- [ ] 4.5b Browser sandbox (L6): `docker compose ps` lists `browser` as running and `/health` shows `browser: enabled True, reachable True`. Paste `http://example.com` → technical details show **What the page looks like** (a picture of example.com) and the layer path has an **L6 Browser sandbox** row. Then `docker inspect -f "{{.RestartCount}}" amaan-browser-1` prints 1 or more (a clean container replaced the used one). A second check within a few seconds may skip L6 while the new container starts.
 - [ ] 4.6 Optional, gVisor: follow LINK_SECURITY.md section 6, set `AMAAN_SANDBOX_RUNTIME=runsc` in `.env`, restart, repeat 4.2 to 4.5. If Docker reports an unknown runtime, remove the line; the default (`runc`) is fine for the demo.
 - [ ] 4.7 Quit Ollama (tray icon) → the card says **Local AI is off…**; the normal verdict still works.
 

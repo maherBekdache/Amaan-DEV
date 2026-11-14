@@ -5,7 +5,9 @@
 3. The worker cannot reach private addresses through the proxy, nor the internet without it.
 4. URL.vet's Chrome (its screenshot endpoint) works through the proxy and cannot reach
    private addresses; its network has no direct route out.
-5. With --runtime runsc, the sandbox containers really run under gVisor.
+5. The browser sandbox (L6) opens a page, is replaced by a fresh container, and has no
+   direct route out.
+6. With --runtime runsc, the sandbox containers really run under gVisor.
 
 Only harmless public pages are used (example.com).
 """
@@ -50,7 +52,7 @@ def main() -> int:
     for _ in range(60):
         try:
             health = httpx.get(f"{AMAAN}/health", timeout=5).json()
-            if (health.get("expander") or {}).get("reachable"):
+            if (health.get("expander") or {}).get("reachable") and (health.get("browser") or {}).get("reachable"):
                 break
         except (httpx.HTTPError, ValueError) as e:
             health = {"error": repr(e)}
@@ -64,6 +66,33 @@ def main() -> int:
     check("worker followed a public link", exp.get("status") == "ok" and exp.get("stopped") == "final page",
           {k: exp.get(k) for k in ("status", "stopped", "final_url", "title")})
     check("URL.vet answered", (item.get("urlvet") or {}).get("status") == "ok", (item.get("urlvet") or {}).get("status"))
+
+    # Layer L6: example.com has too little text for L5, so the browser sandbox opens it too.
+    check("health: browser sandbox reachable", (health.get("browser") or {}).get("reachable") is True,
+          health.get("browser"))
+    view = item.get("browser") or {}
+    check("browser sandbox opened the page", view.get("status") == "ok" and view.get("title") == "Example Domain"
+          and str(view.get("screenshot", "")).startswith("data:image/jpeg"),
+          {k: view.get(k) for k in ("status", "stopped", "title", "chrome_sandbox", "elapsed_ms")})
+    box = run("docker", "compose", "ps", "-aq", "browser").stdout.strip()
+    for _ in range(30):  # disposable: the container that opened the page must have been replaced
+        restarts = run("docker", "inspect", "-f", "{{.RestartCount}}", box).stdout.strip()
+        if restarts.isdigit() and int(restarts) >= 1:
+            break
+        time.sleep(1)
+    check("browser container was replaced after its link", restarts.isdigit() and int(restarts) >= 1, restarts)
+    for _ in range(30):
+        try:
+            again = httpx.get(f"{AMAAN}/health", timeout=5).json().get("browser") or {}
+            if again.get("reachable"):
+                break
+        except (httpx.HTTPError, ValueError):
+            again = {}
+        time.sleep(1)
+    check("a fresh browser container is ready again", again.get("reachable") is True, again)
+    r = run("docker", "compose", "exec", "-T", "browser", "python", "-c",
+            "import urllib.request;urllib.request.urlopen('http://example.com',timeout=8)")
+    check("browser container has no direct route out", r.returncode != 0, r.stderr.strip().splitlines()[-1:])
 
     ev = httpx.post(f"{AMAAN}/analyze/text", json={"text": "Router: http://192.168.1.1/login"}, timeout=90).json()
     uv = ev["items"][0].get("urlvet") or {}
@@ -88,7 +117,7 @@ def main() -> int:
 
     if runtime != "runc":
         worker = run("docker", "compose", "ps", "-q", "expander").stdout.strip()
-        for name in (worker, "urlvet-chrome"):
+        for name in (worker, box, "urlvet-chrome"):
             r = run("docker", "inspect", "-f", "{{.Name}} {{.HostConfig.Runtime}}", name)
             check(f"runs under {runtime}", r.stdout.strip().endswith(" " + runtime), r.stdout.strip() or r.stderr.strip())
 

@@ -22,7 +22,7 @@ import time
 from pydantic import BaseModel
 
 from amaan.ai.provider import LLMProvider, LLMUnavailable
-from amaan.schemas import Evidence, Expansion, ItemKind
+from amaan.schemas import BrowserView, Evidence, Expansion, ItemKind
 
 SCHEMA = {
     "type": "object",
@@ -108,7 +108,9 @@ def build_prompt(ev: Evidence, text: str | None, page: Expansion | None, read_me
     if text and read_message:
         lines += ["", "The message:", _untrusted(text, 1500)]
     if page and page.status == "ok":
-        lines += ["", "Amaan's sandbox followed the link (pages read, scripts never run).",
+        how = ("opened the link in a disposable sandboxed browser (scripts ran there, not on the user's device)."
+               if isinstance(page, BrowserView) else "followed the link (pages read, scripts never run).")
+        lines += ["", f"Amaan's sandbox {how}",
                   f"Redirect chain: {' -> '.join(h.url for h in page.hops[:8]) or 'none'}",
                   f"Stopped because: {page.stopped}"]
         if page.asks_for:
@@ -117,6 +119,13 @@ def build_prompt(ev: Evidence, text: str | None, page: Expansion | None, read_me
             lines.append("The last page hides behind a 'verify you are human' check.")
         if page.download:
             lines.append(f"The link downloads a file: {page.download.content_type or 'unknown type'}")
+        if isinstance(page, BrowserView):
+            if page.clickfix:
+                lines.append("The page puts a command in the clipboard and tells the visitor to paste and run it.")
+            if page.fake_window:
+                lines.append("The page draws a fake browser window with a fake address bar around a login form.")
+            if page.login_frames:
+                lines.append(f"The page embeds a login form from another site: {', '.join(page.login_frames)}")
         if read_message:
             lines += ["Page title and content (as text):", _untrusted(f"{page.title}\n{page.text}", 2500)]
     lines += ["", "Write the JSON summary."]
@@ -143,7 +152,10 @@ async def second_opinion(provider: LLMProvider, ev: Evidence, text: str | None =
         return AIOpinion(available=False, **base, message=str(e))
     note = ""
     if page is not None:
-        note = "Link followed in Amaan's sandbox (no browser, scripts not run)." if page.status == "ok" else page.message
+        note = page.message
+        if page.status == "ok":
+            note = ("Link opened in Amaan's disposable browser sandbox (scripts ran there, not on your device)."
+                    if isinstance(page, BrowserView) else "Link followed in Amaan's sandbox (no browser, scripts not run).")
     return AIOpinion(available=True, **base, **out, read_message=read and bool(text),
                      page_checked=bool(page and page.status == "ok"), page_note=note,
                      elapsed_ms=int((time.perf_counter() - t0) * 1000))

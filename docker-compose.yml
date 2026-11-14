@@ -35,8 +35,11 @@ services:
       AMAAN_STT_MODEL: ${AMAAN_STT_MODEL:-}
       # Expansion worker (sandbox layer L5): answers over a Unix socket in the shared volume.
       AMAAN_EXPANDER_SOCKET: /run/amaan-expander/expander.sock
+      # Browser sandbox (layer L6): one disposable Chromium per link, also over a Unix socket.
+      AMAAN_BROWSER_SOCKET: /run/amaan-browser/browser.sock
     volumes:
       - expander_sock:/run/amaan-expander   # the only channel to the worker; it cannot call us
+      - browser_sock:/run/amaan-browser
     extra_hosts: ["host.docker.internal:host-gateway"]
     networks: [default, urlvet]
     read_only: true              # nothing is written inside the container
@@ -87,6 +90,28 @@ services:
     pids_limit: 64
     restart: unless-stopped
 
+  # Layer L6: a real headless Chromium for pages that only show themselves once scripts run.
+  # Disposable: the worker opens ONE link and exits; "restart: always" then starts a clean
+  # container (read-only image, fresh in-memory /tmp), so no page can affect the next check.
+  browser:
+    build: ./sandbox/browser
+    image: amaan-browser:dev
+    environment:
+      AMAAN_EGRESS_PROXY: http://10.213.47.200:3128
+      AMAAN_BROWSER_SOCKET: /run/amaan-browser/browser.sock
+    volumes:
+      - browser_sock:/run/amaan-browser
+    networks: [sandbox]
+    runtime: ${AMAAN_SANDBOX_RUNTIME:-runc}
+    read_only: true
+    tmpfs: ["/tmp:size=512m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 512
+    restart: always
+
   egress:
     build: ./sandbox/egress
     image: amaan-egress:dev
@@ -103,6 +128,7 @@ services:
 volumes:
   wa_session:
   expander_sock:
+  browser_sock:
 
 networks:
   sandbox:

@@ -131,6 +131,19 @@ class Expansion(BaseModel):
     raw_hops: list[str] = Field(default=[], exclude=True)
 
 
+class BrowserView(Expansion):
+    """What the browser sandbox (layer L6) saw: a real headless browser ran the page's scripts
+    inside a disposable container. Same fields as the expansion, plus what only a browser shows."""
+
+    clickfix: bool = Field(default=False, description="Page puts a command in the clipboard / asks to paste and run it")
+    copies_text: bool = False
+    fake_window: list[str] = Field(default=[], description="Addresses shown in drawn (fake) browser windows, defanged")
+    login_frames: list[str] = Field(default=[], description="Other sites whose login form is embedded in the page")
+    screenshot: str = Field(default="", description="Small JPEG of the page as a data: URL (made by the sandbox)")
+    chrome_sandbox: bool | None = Field(default=None, description="Whether Chrome's own sandbox was on")
+    clipboard: list[str] = Field(default=[], exclude=True)  # may hold a malicious command: never sent to the apps
+
+
 class AnalyzedItem(BaseModel):
     id: int
     kind: ItemKind
@@ -141,6 +154,7 @@ class AnalyzedItem(BaseModel):
     details: dict[str, str] = {}  # payload fields, e.g. Wi-Fi SSID, phone number
     urlvet: UrlVetResult | None = None
     expansion: Expansion | None = Field(default=None, description="Where the link really goes (sandbox, no browser)")
+    browser: BrowserView | None = Field(default=None, description="What a sandboxed browser saw (only for links that need it)")
     sources: list[SourceResult] = Field(default=[], description="Every reputation source's answer (multi-source check)")
     signals: list[Signal] = []
     risk_level: RiskLevel
@@ -173,6 +187,7 @@ class HealthResponse(BaseModel):
     qr_decoders: dict[str, bool]
     ai: dict[str, object] = {}
     expander: dict[str, object] = {}
+    browser: dict[str, object] = {}
 
 
 class ExplainRequest(BaseModel):

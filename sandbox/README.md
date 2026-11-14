@@ -15,3 +15,8 @@ Tests (no Docker or internet needed): `backend/.venv/bin/python -m pytest sandbo
 
 Optional stronger isolation with gVisor: set `AMAAN_SANDBOX_RUNTIME=runsc` in `.env`
 after installing gVisor (see `docs/LINK_SECURITY.md`).
+
+## browser/ (layer L6)
+A disposable headless Chromium for pages that need their scripts to run. One link per container
+life. Tests: `sandbox/tests/test_browser.py` (need `pip install playwright && playwright install chromium`;
+skipped otherwise). See `docs/LINK_SECURITY.md` section 4b.

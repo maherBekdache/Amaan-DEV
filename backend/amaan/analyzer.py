@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from amaan.clients.browser import BrowserClient
 from amaan.clients.expander import ExpanderClient
 from amaan.clients.urlvet import UrlVetClient
 from amaan.config import Settings
@@ -26,11 +27,13 @@ from amaan.lookups import lookup_links
 from amaan.reputation.base import SourceResult
 from amaan.schemas import (
     AnalyzedItem,
+    BrowserView,
     Evidence,
     Expansion,
     InputType,
     ItemKind,
     ItemSource,
+    Severity,
     Signal,
     TextRequest,
     UrlVetResult,
@@ -51,6 +54,7 @@ class _Pending:
     signals: list[Signal] = field(default_factory=list)
     urlvet: UrlVetResult | None = None
     expansion: Expansion | None = None
+    browser: BrowserView | None = None
     sources: list[SourceResult] = field(default_factory=list)
 
 
@@ -75,6 +79,8 @@ class LinkBudget:
     cache: dict[str, UrlVetResult] = field(default_factory=dict)
     sources: dict[str, list[SourceResult]] = field(default_factory=dict)
     expansions: dict[str, Expansion | None] = field(default_factory=dict)
+    views: dict[str, BrowserView] = field(default_factory=dict)
+    renders_left: int = -1
     queued: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
@@ -98,11 +104,12 @@ async def _no_expansion() -> None:
 
 class Analyzer:
     def __init__(self, settings: Settings, urlvet: UrlVetClient, reputation=None,
-                 expander: ExpanderClient | None = None) -> None:
+                 expander: ExpanderClient | None = None, browser: BrowserClient | None = None) -> None:
         self.s = settings
         self.urlvet = urlvet
         self.reputation = reputation  # amaan.reputation.aggregator.Reputation (optional)
         self.expander = expander  # sandbox layer L5 (optional)
+        self.browser = browser  # sandbox layer L6 (optional)
 
     def _expand(self, url: str):
         if self.expander is None or not self.expander.enabled:
@@ -152,12 +159,29 @@ class Analyzer:
             budget.sources[k] = srcs
             budget.expansions[k] = exp
             budget.queued.discard(k)
+        # Layer L6: links L5 could not see into, or that already look bad, go to the browser sandbox,
+        # one at a time (each gets a fresh container) and only a few per check.
+        if self.browser is not None and self.browser.enabled:
+            if budget.renders_left < 0:
+                budget.renders_left = self.s.browser_max_per_check
+            for k, p in unique.items():
+                if budget.renders_left <= 0:
+                    break
+                exp = budget.expansions.get(k)
+                u = parse_candidate(p.check_url)
+                bad = any(s.severity in (Severity.high, Severity.medium) for s in
+                          (local_rules.url_signals(u) if u else []) + aggregate.expansion_signals(exp, p.check_url))
+                if aggregate.needs_browser(exp, p.check_url, bad):
+                    budget.renders_left -= 1
+                    budget.views[k] = await self.browser.render(p.check_url if "://" in p.check_url
+                                                                else "http://" + p.check_url)
         for p in to_send:
             p.urlvet = budget.cache[link_key(p.check_url)].model_copy()
         for p in pending:
             if p.check_url and link_key(p.check_url) in budget.sources:
                 p.sources = budget.sources[link_key(p.check_url)]
                 p.expansion = budget.expansions.get(link_key(p.check_url))
+                p.browser = budget.views.get(link_key(p.check_url))
         return int((time.perf_counter() - t0) * 1000)
 
     def _finish(self, input_type: InputType, pending: list[_Pending], message_signals: list[Signal],
@@ -169,10 +193,12 @@ class Analyzer:
                 signals = aggregate.urlvet_signals(p.urlvet) + signals
             signals = aggregate.source_signals(p.sources) + signals
             signals += aggregate.expansion_signals(p.expansion, p.check_url)
+            signals += aggregate.browser_signals(p.browser, p.expansion, p.check_url)
             level = aggregate.item_level(p.kind, signals, p.urlvet)
             item = AnalyzedItem(
                 id=idx, kind=p.kind, source=p.source, display=p.display, host=p.host, host_ascii=p.host_ascii,
-                details=p.details, urlvet=p.urlvet, expansion=p.expansion, sources=p.sources, signals=signals,
+                details=p.details, urlvet=p.urlvet, expansion=p.expansion,
+                browser=p.browser if p.browser and p.browser.status == "ok" else None, sources=p.sources, signals=signals,
                 risk_level=level, summary="",
                 lookups=lookup_links(p.check_url, p.host_ascii) if p.kind is ItemKind.url and p.check_url and p.host_ascii else [],
             )

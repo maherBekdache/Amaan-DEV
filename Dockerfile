@@ -13,7 +13,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libzbar0 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 amaan \
-    && mkdir -p /run/amaan-expander && chown amaan /run/amaan-expander
+    && mkdir -p /run/amaan-expander /run/amaan-browser && chown amaan /run/amaan-expander /run/amaan-browser
 WORKDIR /app
 COPY backend/pyproject.toml ./
 COPY backend/amaan ./amaan

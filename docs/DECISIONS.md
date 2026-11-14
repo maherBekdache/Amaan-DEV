@@ -257,6 +257,18 @@ link itself is still never opened.
   verified, and its browser shared a Docker network with the Amaan backend.
 - **Budget:** \$200 approved; everything here is self-hosted and costs nothing extra.
 
+## D20. Browser sandbox (layer L6): one disposable Chromium per link
+*14 Nov 2026. Covered by hard rule 1 as reworded in D19 (an approved, disposable, network-restricted
+sandbox); details in LINK_SECURITY.md section 4b.*
+
+- A real headless Chromium opens links that the script-free worker (L5) cannot see into, or that are
+  already suspicious. It closes the main gap left by D19: scam pages shown only by JavaScript.
+- One link per container: the worker exits after each page and Docker starts a clean one. This is the
+  container version of the planned "one Firecracker microVM per link".
+- Same network rule as L5: internal network, egress proxy only, Unix socket to the backend.
+- Playwright (Apache-2.0) and Chromium (BSD) are installed in the image, unmodified.
+- The verdict stays rule-based: browser findings are labelled *Automated check* like all others.
+
 ## Open items for the team
 - [ ] Verify every official domain in `backend/amaan/data/brands.json`, and add verified second
   domains (for example a bank's `.com` and `.com.lb`) to stop "other ending" false alarms.

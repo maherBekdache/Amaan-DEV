@@ -64,6 +64,16 @@ export interface Expansion {
   elapsed_ms: number;
 }
 
+/** What the browser sandbox (L6) saw: a real browser ran the page in a disposable container. */
+export interface BrowserView extends Expansion {
+  clickfix: boolean;
+  copies_text: boolean;
+  fake_window: string[];
+  login_frames: string[];
+  screenshot: string;
+  chrome_sandbox: boolean | null;
+}
+
 export interface SourceResult {
   source: string;
   kind: string;
@@ -83,6 +93,7 @@ export interface AnalyzedItem {
   details: Record<string, string>;
   urlvet: UrlVetResult | null;
   expansion?: Expansion | null;
+  browser?: BrowserView | null;
   sources: SourceResult[];
   signals: Signal[];
   risk_level: RiskLevel;
@@ -116,6 +127,7 @@ export interface Health {
   qr_decoders: Record<string, boolean>;
   ai?: { available: boolean; model: string | null; provider: string | null };
   expander?: { enabled: boolean; reachable: boolean };
+  browser?: { enabled: boolean; reachable: boolean };
 }
 
 export interface Pairing {

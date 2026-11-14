@@ -18,6 +18,7 @@ from amaan.ai.provider import make_provider
 from amaan.ai.reasoner import AIOpinion, first_link, second_opinion
 from amaan.analyzer import Analyzer
 from amaan.api import whatsapp
+from amaan.clients.browser import BrowserClient
 from amaan.clients.expander import ExpanderClient
 from amaan.clients.stt import Transcriber
 from amaan.clients.urlvet import UrlVetClient
@@ -58,8 +59,10 @@ async def lifespan(app: FastAPI):
     expander = ExpanderClient(settings.expander_socket, settings.expander_timeout_s)
     ai = make_provider(settings)
     stt = Transcriber(settings.stt_url, settings.stt_model)
+    browser = BrowserClient(settings.browser_socket)
     app.state.expander = expander
-    app.state.analyzer = Analyzer(settings, client, reputation, expander)
+    app.state.browser = browser
+    app.state.analyzer = Analyzer(settings, client, reputation, expander, browser)
     app.state.ai = ai
     app.state.stt = stt
     if stt.error:
@@ -70,6 +73,7 @@ async def lifespan(app: FastAPI):
     await client.aclose()
     await reputation.aclose()
     await expander.aclose()
+    await browser.aclose()
     await stt.aclose()
     if ai:
         await ai.aclose()
@@ -141,7 +145,8 @@ async def health(request: Request) -> HealthResponse:
           "model": st.ai.model if st.ai else None, "provider": st.ai.name if st.ai else None}
     return HealthResponse(status="ok", version=__version__, urlvet=uv,
                           qr_decoders=available_decoders(settings.wechat_model_dir), ai=ai,
-                          expander={"enabled": st.expander.enabled, "reachable": await st.expander.reachable()})
+                          expander={"enabled": st.expander.enabled, "reachable": await st.expander.reachable()},
+                          browser={"enabled": st.browser.enabled, "reachable": await st.browser.reachable()})
 
 
 @app.post("/analyze/text", response_model=Evidence)
@@ -218,6 +223,9 @@ async def ai_explain(req: ExplainRequest, request: Request) -> AIOpinion:
     link = first_link(req.evidence)
     if req.open_page and link and st.expander.enabled:
         page = await st.expander.expand(link if "://" in link else "http://" + link)
+        seen = st.browser.cached(link if "://" in link else "http://" + link)
+        if seen and seen.status == "ok":  # the browser sandbox already opened it during the check
+            page = seen
     return await second_opinion(st.ai, req.evidence, req.text, page)
 
 

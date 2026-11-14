@@ -255,7 +255,7 @@ Other standing rules:
    - optional cloud LLM that receives evidence only (needs approval)
 6. **M2 voice notes:** Whisper fine-tuned for Lebanese speech; anti-spoofing and scam-intent stubs; input via the share sheet.
 
-Details: `docs/MOBILE_PERMISSIONS.md`, `docs/FUTURE.md`, `docs/DECISIONS.md` (D1–D19), `docs/FEASIBILITY.md`, `docs/TESTING.md`, `docs/DEVELOPMENT.md`, `docs/Amaan_Documentation.docx`.
+Details: `docs/MOBILE_PERMISSIONS.md`, `docs/FUTURE.md`, `docs/DECISIONS.md` (D1–D20), `docs/FEASIBILITY.md`, `docs/TESTING.md`, `docs/DEVELOPMENT.md`, `docs/Amaan_Documentation.docx`.
 
 ## 10. How to work on this repo (for an agent)
 - Before changing behavior, check the four hard rules.
@@ -284,5 +284,8 @@ Details: `docs/MOBILE_PERMISSIONS.md`, `docs/FUTURE.md`, `docs/DECISIONS.md` (D1
   `sandbox` builds and runs the real stack (runc, then gVisor). URL.vet's analysis turned out not to
   use its Chrome (screenshots only); its TLS check skips its SSRF guard, so private and local links
   are no longer sent to it.
-- **Still to do:** check on Windows (`docs/TESTING.md` section 4); browser sandbox (L6) and
-  Firecracker trial in spring.
+- **14 Nov:** browser sandbox (L6, D20): `sandbox/browser`, one disposable Chromium container per
+  link; new signals for script-hidden forms, paste-and-run lures, fake browser windows, embedded
+  logins and brand/title mismatch; screenshot in the web app; CI checks it live (runc and gVisor).
+- **Still to do:** check on Windows (`docs/TESTING.md` section 4); Firecracker trial in spring;
+  logo comparison in L6.

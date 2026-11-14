@@ -39,7 +39,7 @@ L1 intake ── link ──► L2 gateway ─► L3 static rules ────�
 | L4 Reputation | backend to listed services | link or hash | one labelled result per source | the page |
 | L5 Expansion worker | sandbox container | link | hops, final link, title, form fields asked, download hash, up to 4,000 characters of text (text for L8 only) | the message, the backend |
 | URL.vet | its own containers (Go HTTP client with SSRF guard; Chrome only for screenshots) | link | score, reasons, redirect chain | the message |
-| L6 Browser sandbox | planned (spring) | last link | screenshot, script behaviour | the message |
+| L6 Browser sandbox | disposable Chromium container (built 14 Nov) | link, only when L5 could not see enough or the link is already suspicious | hops incl. script redirects, fields asked, fake windows, paste-and-run lures, embedded logins, download hash, small screenshot (text and clipboard stay on the server) | the message, the backend |
 | L7 Verdict | backend | all signals | level and labelled reasons | n/a |
 | L8 AI summary | local model | evidence, fenced page text | plain summary; cannot change the verdict | the message, unless the model is local |
 
@@ -79,6 +79,31 @@ Every new domain the worker finds on the way goes back through the L3 rules (`re
   so the screenshot endpoint cannot reach the LAN either.
 - **Local addresses** (private IPs, `localhost`, `.local`, `.lan`) are not sent to URL.vet at all.
 
+## 4b. The browser sandbox (L6, 14 Nov)
+
+`sandbox/browser`: a real headless Chromium (Playwright) with an Android phone profile (Arabic,
+Beirut time). It runs the page's scripts, moves, taps and scrolls like a person, then reports.
+
+- **When it runs** (`aggregate.needs_browser`): L5 succeeded but saw an empty shell (under 200
+  characters, no form), a script redirect or a CAPTCHA, or the link already has a medium or high
+  finding. Never for official domains, downloads, blocked or unreachable links. At most 2 pages per
+  check (`AMAAN_BROWSER_MAX_PER_CHECK`), one at a time.
+- **Disposable:** the worker opens one link and exits; `restart: always` starts a clean container
+  (read-only image, in-memory `/tmp`). Cookies, cache, service workers or a compromised browser
+  process never reach the next check. The backend waits up to 12 s for the next container.
+- **Same walls as L5:** internal network, egress proxy only, Unix socket, no capabilities,
+  no-new-privileges, 1 GB, 1 CPU, 512 processes, optional gVisor.
+- **Chrome's own sandbox:** tried first; Docker's default seccomp profile blocks the user namespaces it
+  needs, so it usually falls back to off. The result is reported per page (`chrome_sandbox`).
+- **New signals** (source `browser`, *Automated check*): `page_hidden_from_scanners` (medium: the form
+  appears only in a real browser), `page_paste_command` (high: ClickFix, a command put in the
+  clipboard), `page_fake_window` (high: drawn browser window with a fake address bar),
+  `page_login_frame` (medium: login form embedded from another site), plus the L5 page signals when
+  only the browser saw them. `page_brand_mismatch` (high, L5 and L6): the page title names a protected
+  brand and asks for a password, code or card on a domain that is not the brand's.
+- **Privacy:** the clipboard text (possibly a malicious command) and page text never leave the server;
+  the app gets a small JPEG screenshot made inside the sandbox.
+
 ## 5. Tests
 
 - `sandbox/tests` (30): address rules, proxy refusals, every redirect type, downloads, empty answers,
@@ -111,11 +136,13 @@ gVisor gives each sandbox container its own user-space kernel. It needs Linux.
   guard. Amaan no longer sends private or local addresses, but a public name that resolves to a
   private address would still get a TLS handshake on port 443 (no request, no data sent). Fixing it
   fully needs a change in URL.vet or a firewall rule on its network.
-- Neither URL.vet nor the worker runs page scripts, so a scam shown only by JavaScript (one form of
-  cloaking) is seen by neither until L6 exists.
+- L6 runs page scripts, but headless Chromium can be fingerprinted, and IP-based cloaking still works
+  (one IP address). "Not seen" is still never "safe".
+- L6's Chrome sandbox is usually off inside Docker (see 4b); the container, the proxy and gVisor are the walls.
+- L6 does not yet compare logos (Phishpedia-style); brand detection uses the page title only.
+- A browser container that is still restarting makes L6 unavailable for that check; the verdict then uses L1 to L5.
 - All checks leave from one IP address, so IP-based cloaking still works. A Lebanese or residential
   exit costs money beyond the \$200 budget.
-- Pages that only show the scam after scripts run look empty to the worker until L6 exists.
 - `brand_other_ending` can flag a brand's real second domain (for example a bank's `.com` and
   `.com.lb`) until `brands.json` lists it.
 - The "Misspelled site" example (`whsh.money`) is sent to URL.vet and the worker like any link.

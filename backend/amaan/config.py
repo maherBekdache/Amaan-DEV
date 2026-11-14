@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     # with this container. Empty = off (links are then followed only inside URL.vet).
     expander_socket: str | None = None
     expander_timeout_s: float = 30.0
+    # Browser sandbox (layer L6, sandbox/browser): one disposable Chromium per link.
+    browser_socket: str | None = None
+    browser_max_per_check: int = 2  # pages opened in the browser per analysis (each takes seconds)
 
     # Phone app gateway (hybrid mode): LAN address shown in the pairing QR, and
     # the secret the app must send. Both set by the scripts; off when empty.

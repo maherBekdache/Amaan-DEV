@@ -111,6 +111,8 @@ jobs:
           cache-dependency-path: backend/pyproject.toml
       - run: sudo apt-get update && sudo apt-get install -y libzbar0
       - run: pip install -e "backend[dev]"
+      - name: Chromium for the browser sandbox tests
+        run: pip install -r sandbox/browser/requirements.txt && playwright install --with-deps chromium
       - name: Sandbox unit and end-to-end tests (no Docker)
         run: python -m pytest -q sandbox/tests
       - name: Build and start URL.vet, Amaan and the sandbox
@@ -136,5 +138,5 @@ jobs:
       - name: Logs
         if: always()
         run: |
-          docker compose logs --tail 80 amaan expander egress || true
+          docker compose logs --tail 80 amaan expander browser egress || true
           docker compose -p urlvet logs --tail 80 || true
