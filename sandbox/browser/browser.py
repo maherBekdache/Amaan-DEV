@@ -223,7 +223,12 @@ async def render(url: str, proxy: str = PROXY, sandbox: str = CHROME_SANDBOX) ->
                 await page.goto(url, wait_until="load", timeout=LOAD_TIMEOUT_MS)
             except PwError as e:
                 msg = str(e)
-                if "Download is starting" in msg or downloads:
+                if "Download is starting" in msg or "ERR_ABORTED" in msg:  # the link is a file, not a page
+                    for _ in range(30):
+                        if downloads:
+                            break
+                        await page.wait_for_timeout(100)
+                if downloads:
                     pass
                 elif "ERR_TUNNEL_CONNECTION_FAILED" in msg or "ERR_PROXY" in msg or blocked:
                     out["stopped"] = "blocked address" if blocked or "TUNNEL" in msg else "could not connect"
