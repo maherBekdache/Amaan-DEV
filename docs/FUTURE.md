@@ -6,7 +6,7 @@ What exists today (updated 8 Nov 2026):
 |---|---|---|
 | Message cues | weighted Arabic / Arabizi / English phrase rules | rules |
 | Link checks | local rules (typo domains, hidden redirects, lookalikes) + URL.vet + OpenPhish/URLhaus lists + Safe Browsing + VirusTotal + urlscan.io | rules + reputation |
-| Page capture | expansion worker (redirect chain, page text, form fields, download hashes; no browser) behind the egress proxy | evidence |
+| Page capture | expansion worker L5 (no scripts) and disposable browser sandbox L6 (scripts run; screenshot, fake windows, paste-and-run lures), both behind the egress proxy | evidence |
 | AI | local LLM via Ollama (`qwen2.5:3b` default) summarizes the message and every tool's answer in plain words | generative AI, advisory |
 
 The AI never replaces the evidence-based verdict: it is shown as a second
@@ -86,6 +86,6 @@ Design and layers: LINK_SECURITY.md.
 - **Spring 2027:** Firecracker microVMs (one disposable VM per check, about 125 ms start) on a Linux
   host with KVM; OpenSandbox is a candidate manager. Not possible inside the phone app (Android AVF is
   closed to third-party apps; Apple's Virtualization framework is macOS only).
-- **Layer L6, browser sandbox:** a disposable headless Chrome of our own, behind the same proxy, for
-  pages that only show the scam after scripts run (screenshots for §1.3 and §3).
+- **Layer L6, browser sandbox: built 14 Nov** (D20): a disposable headless Chrome of our own, behind
+  the same proxy. Next: logo comparison on its screenshots (§3) and a residential exit IP.
 - **Trace view** for the demo: each layer's input and output, defanged, so the data flow is visible.

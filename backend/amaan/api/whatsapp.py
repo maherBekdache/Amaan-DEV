@@ -76,7 +76,7 @@ async def analyze_export(analyzer: Analyzer, export: ChatExport) -> ImportReport
                 keys.append((k, u.url))
     to_fetch = keys[: budget.remaining]
     results = await asyncio.gather(*(analyzer.urlvet.analyze(url) for _, url in to_fetch))
-    for (k, _), r in zip(to_fetch, results):
+    for (k, _), r in zip(to_fetch, results, strict=True):
         budget.cache[k] = r
     budget.remaining = 0
     if len(keys) > len(to_fetch):

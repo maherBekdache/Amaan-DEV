@@ -195,7 +195,6 @@ switch ($Command) {
     Push-Location $Root
     try { Invoke-Checked docker @("compose", "--profile", "whatsapp", "down") } finally { Pop-Location }
     if (Test-Path $UrlvetDir) { Set-SandboxRuntime; Invoke-Checked docker ((Get-UrlvetCompose) + @("down")) }
-    Test-Native docker @("compose", "-p", "lookyloo", "down") | Out-Null  # Lookyloo was removed (D19); stop an old copy if any
   }
 
   "status" {

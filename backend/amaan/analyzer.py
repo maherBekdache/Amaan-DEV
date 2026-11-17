@@ -154,7 +154,7 @@ class Analyzer:
                              for p in unique.values())),
             asyncio.gather(*(self._expand(p.check_url) for p in unique.values())),
         )
-        for k, r, srcs, exp in zip(unique.keys(), results, source_lists, expansions):
+        for k, r, srcs, exp in zip(unique.keys(), results, source_lists, expansions, strict=True):
             budget.cache[k] = r
             budget.sources[k] = srcs
             budget.expansions[k] = exp

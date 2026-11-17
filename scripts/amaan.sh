@@ -124,7 +124,6 @@ case "$CMD" in
   down)
     (cd "$ROOT" && docker compose --profile whatsapp down)
     [ -d "$URLVET_DIR" ] && urlvet_compose down
-    docker compose -p lookyloo down >/dev/null 2>&1 || true  # Lookyloo was removed (D19); stop an old copy if any
     true
     ;;
   status)

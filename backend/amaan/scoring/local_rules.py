@@ -166,7 +166,7 @@ def url_signals(u: ExtractedUrl) -> list[Signal]:
 
     if "xn--" in u.host_ascii:
         labels = u.host.split(".")
-        mixed = any(len(_scripts(l) - {"arabic"}) > 1 or ("latin" in _scripts(l) and len(_scripts(l)) > 1) for l in labels)
+        mixed = any(len(_scripts(lab) - {"arabic"}) > 1 or ("latin" in _scripts(lab) and len(_scripts(lab)) > 1) for lab in labels)
         if mixed:
             sigs.append(_sig(
                 "mixed_script", "Domain mixes alphabets (lookalike letters)",

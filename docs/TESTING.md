@@ -57,7 +57,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 - [ ] 4.1 With Ollama running, a result shows an **AI summary** card (automatic, or **Explain with AI**): what the message is, what the sources found, what to do. It never replaces the verdict above it.
 - [ ] 4.2 The sandbox is up: `docker compose ps` lists `expander` and `egress` as running, and
   `(Invoke-RestMethod http://localhost:8000/health).expander` shows `enabled: True, reachable: True`.
-- [ ] 4.3 For a link result the AI card says **Link followed in Amaan's sandbox (no browser, scripts not run).** (up to 30 s). Stop the worker (`docker compose stop expander`) → the card still works and says **The expansion worker is not running.** Start it again with `docker compose start expander`.
+- [ ] 4.3 For a link result the AI card says **Link followed in Amaan's sandbox (no browser, scripts not run).** or, when the browser sandbox was used, **Link opened in Amaan's disposable browser sandbox…** (up to 30 s). Stop the worker (`docker compose stop expander`) → the card still works and says **The expansion worker is not running.** Start it again with `docker compose start expander`.
 - [ ] 4.4 The sandbox cannot reach your home network. This must print **403**:
   ```powershell
   docker compose exec expander python -c "import httpx;print(httpx.get('http://192.168.1.1',proxy='http://10.213.47.200:3128').status_code)"

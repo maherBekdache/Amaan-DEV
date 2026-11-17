@@ -19,6 +19,7 @@ Plain Python standard library, so the image stays small and easy to audit.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import ipaddress
 import logging
 import os
@@ -112,10 +113,8 @@ async def _pipe(src: asyncio.StreamReader, dst: asyncio.StreamWriter, budget: li
     except (TimeoutError, ConnectionError, OSError):
         pass
     finally:
-        try:
+        with contextlib.suppress(Exception):  # the connection may already be closed
             dst.close()
-        except Exception:  # noqa: BLE001, S110 - the connection is already closed
-            pass
 
 
 async def _relay(client_r, client_w, server_r, server_w) -> None:
@@ -176,10 +175,8 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, pol
     except (TimeoutError, ValueError, ConnectionError, OSError):
         policy.stats["failed"] += 1
         writer.write(BAD_GATEWAY)
-        try:
+        with contextlib.suppress(ConnectionError):
             await writer.drain()
-        except ConnectionError:
-            pass
         writer.close()
         return
     policy.stats["allowed"] += 1

@@ -8,6 +8,7 @@ the destination. Failures are returned as a status, never as a fake "safe".
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from typing import Any
@@ -107,10 +108,8 @@ class UrlVetClient:
         try:
             r = await self._client.get("/health", timeout=3.0)
             ok = r.status_code < 500
-            try:
+            with contextlib.suppress(ValueError, AttributeError):
                 mock = bool(r.json().get("mock"))  # devtools/mock_urlvet.py
-            except (ValueError, AttributeError):
-                pass
         except httpx.HTTPError:
             ok = False
         return {"reachable": ok, "mock": mock, "base_url": self.base_url,

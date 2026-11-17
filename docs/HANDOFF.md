@@ -1,6 +1,6 @@
 # Amaan: project handoff (for the next developer or AI agent)
 
-*Written 24 Oct 2026, updated 8 Nov 2026 (link security and sandbox, section 11). Repo: https://github.com/maherBekdache/Amaan-DEV (branch `main`).*
+*Written 24 Oct 2026, updated 17 Nov 2026 (link security, sandbox and browser sandbox L6, section 11). Repo: https://github.com/maherBekdache/Amaan-DEV (branch `main`).*
 Read this file first, then `docs/DECISIONS.md` (why things are the way they are).
 
 ---
@@ -18,7 +18,7 @@ Read this file first, then `docs/DECISIONS.md` (why things are the way they are)
   - wants each milestone committed
 
 ## 2. Hard rules (from the owner, non-negotiable)
-1. **Never open, fetch or render an untrusted URL** on the host machine or in our backend. Only an approved, disposable, network-restricted sandbox opens untrusted links: URL.vet's containerized headless Chrome and Amaan's expansion worker (`sandbox/`, approved 8 Nov 2026). Both reach the internet only through the egress proxy. Anything decoded from a QR code is untrusted.
+1. **Never open, fetch or render an untrusted URL** on the host machine or in our backend. Only an approved, disposable, network-restricted sandbox opens untrusted links: URL.vet's containers, Amaan's expansion worker (L5) and Amaan's browser sandbox (L6) (`sandbox/`, approved 8 Nov 2026, L6 added 14 Nov, D20). All reach the internet only through the egress proxy. Anything decoded from a QR code is untrusted.
 2. **No user content leaves the machine.** No third-party cloud APIs unless the owner approves them.
    - Approved so far: URL.vet; OpenPhish/URLhaus lists; Google Safe Browsing (hash prefixes only); VirusTotal (lookup only); urlscan.io (private scans).
    - Each of these receives **links only**.
@@ -40,6 +40,7 @@ Other standing rules:
 | + | Cross-platform app (Expo), multi-source check, AI summary, WhatsApp defaults (unknown numbers), phone WhatsApp tab, "check it yourself" links, testing guide, Word doc | ✅ done (prototype) |
 | + | WhatsApp calls (unknown caller, one-ring warning), voice notes via a local speech-to-text hook, AI summary on the phone, mobile permissions research | ✅ done (Oct 26) |
 | + | Link security: typo and hidden-redirect rules, expansion worker, egress proxy, URL.vet Chrome isolated, Lookyloo removed (D19, `docs/LINK_SECURITY.md`) | ✅ code done (Nov 8); Docker build to verify on Windows |
+| + | Browser sandbox L6: disposable Chromium per link, new page signals, screenshot (D20) | ✅ done and CI-tested (Nov 14); Windows run still to do |
 
 ## 4. Architecture
 ```
@@ -52,9 +53,9 @@ Other standing rules:
                         │ extract → local rules → scoring      │
                         │ reputation aggregator, AI, WhatsApp  │
                         └──┬──────────┬──────────┬──────────┬──┘
-             URL.vet sandbox    expansion     Ollama (host)   whatsapp-bridge (Node/Baileys)
-             (headless Chrome)  worker (Unix  qwen2.5:3b      watches chosen chats, never sends
-                  │             socket)
+             URL.vet sandbox    L5 expansion  L6 browser      Ollama (host)   whatsapp-bridge (Node/Baileys)
+             (Go fetches)       worker        sandbox (Chromium, qwen2.5:3b     watches chosen chats, never sends
+                  │             (Unix socket) one link per life)
                   └──── egress proxy (ports 80/443, public addresses only) ──► internet
              + Safe Browsing / VirusTotal / urlscan.io / OpenPhish+URLhaus lists
 ```
@@ -67,7 +68,7 @@ Other standing rules:
 | Shared core | `packages/core/` | TypeScript (tldts, punycode, fflate) | port of backend rules; **parity-tested** |
 | WhatsApp bridge | `whatsapp-bridge/` | Node 22, `baileys` 7.0.0-rc14 (MIT) | compose profile `whatsapp` |
 | URL.vet | cloned to `third_party/urlvet` (git-ignored) | Go, Docker (AGPL, unmodified) | pinned `a6b54c29b73a053b916805173fba352e9be0204c` |
-| Sandbox | `sandbox/egress`, `sandbox/expander` | Python 3.11 (stdlib + httpx) | egress proxy and expansion worker; internal Docker network; optional gVisor (`AMAAN_SANDBOX_RUNTIME=runsc`) |
+| Sandbox | `sandbox/egress`, `sandbox/expander`, `sandbox/browser` | Python 3.11 (stdlib + httpx; Playwright Chromium for L6) | egress proxy, expansion worker (L5), browser sandbox (L6); internal Docker network; optional gVisor (`AMAAN_SANDBOX_RUNTIME=runsc`) |
 | Infra/scripts | `infra/`, `scripts/amaan.ps1`, `scripts/amaan.sh`, `*.bat` | Docker Compose | ports bound to 127.0.0.1 except the phone gateway |
 
 ### Backend modules
@@ -93,7 +94,7 @@ Other standing rules:
 - `ai/`
   - `provider.py`: Ollama `/api/chat` with a JSON schema.
   - `reasoner.py`: prompt with `<untrusted>` fencing; output `{risk, reasoning, red_flags, advice}`; advisory only.
-- `clients/`: `urlvet.py` (`GET /api/v1/analyze?url=`, 20/min), `expander.py` (Unix socket, `POST /expand`, 5-minute cache).
+- `clients/`: `urlvet.py` (`GET /api/v1/analyze?url=`, 20/min), `expander.py` (Unix socket, `POST /expand`, 5-minute cache), `browser.py` (L6, Unix socket, `POST /render`, waits for the next container).
 - `api/whatsapp.py`
   - `/import/chat`
   - bridge proxy: `/whatsapp/status, link, logout, chats, selection, alerts`
@@ -136,7 +137,7 @@ Other standing rules:
 - **Check it yourself:** 12 clickable rating sites (web, under *Why?*; phone, under each link).
 
 **AI**
-- AI summary (what the message is, what each tool found, what to do), with what the expansion worker read on the page (no browser, scripts not run).
+- AI summary (what the message is, what each tool found, what to do), with what the expansion worker (L5, scripts not run) or the browser sandbox (L6, scripts run) read on the page.
 - `AMAAN_AI_PROVIDER=ollama` (local demo) or `openai` (any OpenAI-compatible server). A non-local model gets findings only (D17).
 
 **WhatsApp**

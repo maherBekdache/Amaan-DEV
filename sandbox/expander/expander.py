@@ -14,6 +14,7 @@ Nothing is written to disk and nothing about the link is logged.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -182,10 +183,8 @@ async def expand(url: str, proxy: str = PROXY) -> dict:
                             if len(body) >= HTML_LIMIT:
                                 break
                         page = PageReader()
-                        try:
+                        with contextlib.suppress(Exception):  # broken HTML is normal on scam pages
                             page.feed(body[:HTML_LIMIT].decode(r.encoding or "utf-8", errors="replace"))
-                        except Exception:  # noqa: BLE001, S110 - broken HTML is normal on scam pages
-                            pass
                         text = " ".join(page.text)
                         nxt = page.refresh or (script_target(page.scripts) if len(text) < 300 else None)
                         if nxt:

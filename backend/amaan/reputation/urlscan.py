@@ -7,6 +7,7 @@ Submits the link with visibility=private, then polls for the verdict
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from functools import partial
 
 import httpx
@@ -31,10 +32,8 @@ async def check(url: str, api_key: str | None, client: httpx.AsyncClient, wait_s
             return _result(status=SourceStatus.rate_limited, detail="Scan quota reached.")
         if r.status_code >= 400:
             msg = ""
-            try:
+            with contextlib.suppress(ValueError):
                 msg = r.json().get("message", "")
-            except ValueError:
-                pass
             return _result(status=SourceStatus.error,
                            detail=f"Scan refused ({msg or r.status_code}).")
         uuid = r.json()["uuid"]

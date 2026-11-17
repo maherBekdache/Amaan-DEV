@@ -157,17 +157,16 @@ async def test_one_link_per_container(site, tmp_path):
     proxy_server, proxy = await start_proxy(egress.Policy(ports=frozenset({port}), address_ok=lambda ip: True))
     sock = str(tmp_path / "browser.sock")
     server, worker = await browser.serve(sock, browser.Worker(proxy, jobs_per_life=1, sandbox="off"))
-    async with proxy_server, server:
-        async with httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(uds=sock), base_url="http://browser",
-                                     timeout=60) as c:
-            assert (await c.get("/health")).json() == {"status": "ok"}
-            first = (await c.post("/render", json={"url": base + "/plain"})).json()
-            if first.get("stopped") == "browser did not start":
-                pytest.skip("Chromium is not installed")
-            assert first["title"] == "Bakery"
-            await asyncio.wait_for(worker.done.wait(), 5)  # the worker now asks to be replaced
-            second = await c.post("/render", json={"url": base + "/plain"})
-            assert second.status_code == 503
+    client = httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(uds=sock), base_url="http://browser", timeout=60)
+    async with proxy_server, server, client as c:
+        assert (await c.get("/health")).json() == {"status": "ok"}
+        first = (await c.post("/render", json={"url": base + "/plain"})).json()
+        if first.get("stopped") == "browser did not start":
+            pytest.skip("Chromium is not installed")
+        assert first["title"] == "Bakery"
+        await asyncio.wait_for(worker.done.wait(), 5)  # the worker now asks to be replaced
+        second = await c.post("/render", json={"url": base + "/plain"})
+        assert second.status_code == 503
 
 
 # --- end to end: Amaan's analyzer -> L5 worker -> L6 browser, both through the egress proxy ---
